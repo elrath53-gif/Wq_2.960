@@ -1,4 +1,4 @@
-name: Compilar APK Estudio EQ
+name: Compilar APK Estudio Master Hi-Res
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-apk:
-    name: Generar Estudio-EQ.apk
+    name: Generar Estudio-Master-Hi-Res.apk
     runs-on: ubuntu-24.04
 
     steps:
@@ -49,14 +49,14 @@ jobs:
         working-directory: android
         run: /tmp/gradle-8.7/bin/gradle assembleRelease --no-daemon --stacktrace
 
-      - name: Preparar archivo Estudio-EQ.apk
-        run: cp android/app/build/outputs/apk/release/app-release.apk Estudio-EQ.apk
+      - name: Preparar archivo Estudio-Master-Hi-Res.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk Estudio-Master-Hi-Res.apk
 
       - name: Subir APK en Actions
         uses: actions/upload-artifact@v4
         with:
-          name: Estudio-EQ-APK
-          path: Estudio-EQ.apk
+          name: Estudio-Master-Hi-Res-APK
+          path: Estudio-Master-Hi-Res.apk
           if-no-files-found: error
 
       - name: Publicar descarga directa en Releases
@@ -64,9 +64,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if ! gh release view apk-lista >/dev/null 2>&1; then
-            gh release create apk-lista Estudio-EQ.apk \
-              --title "Estudio EQ — Descarga directa APK" \
-              --notes "Toca Estudio-EQ.apk abajo en Assets para descargar e instalar la app nativa en tu celular Android."
+            gh release create apk-lista Estudio-Master-Hi-Res.apk \
+              --title "Estudio Master Hi-Res — Descarga directa APK" \
+              --notes "Toca Estudio-Master-Hi-Res.apk abajo en Assets para instalar la app independiente (com.estudiomaster.hires) en tu celular Android sin reemplazar Estudio EQ."
           else
-            gh release upload apk-lista Estudio-EQ.apk --clobber
+            gh release upload apk-lista Estudio-Master-Hi-Res.apk --clobber
           fi

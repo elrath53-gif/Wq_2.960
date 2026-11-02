@@ -26,14 +26,14 @@ import androidx.media.app.NotificationCompat.MediaStyle
 class PlaybackService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "estudio_eq_playback"
-        const val NOTIF_ID = 1001
+        const val CHANNEL_ID = "estudio_master_hires_playback"
+        const val NOTIF_ID = 1002
 
-        const val ACTION_UPDATE = "com.estudioeq.app.ACTION_UPDATE"
-        const val ACTION_TOGGLE = "com.estudioeq.app.ACTION_TOGGLE"
-        const val ACTION_NEXT = "com.estudioeq.app.ACTION_NEXT"
-        const val ACTION_PREV = "com.estudioeq.app.ACTION_PREV"
-        const val ACTION_STOP = "com.estudioeq.app.ACTION_STOP"
+        const val ACTION_UPDATE = "com.estudiomaster.hires.ACTION_UPDATE"
+        const val ACTION_TOGGLE = "com.estudiomaster.hires.ACTION_TOGGLE"
+        const val ACTION_NEXT = "com.estudiomaster.hires.ACTION_NEXT"
+        const val ACTION_PREV = "com.estudiomaster.hires.ACTION_PREV"
+        const val ACTION_STOP = "com.estudiomaster.hires.ACTION_STOP"
 
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_ARTIST = "extra_artist"
@@ -54,8 +54,8 @@ class PlaybackService : Service() {
     private var noisyRegistered = false
     private var isInForeground = false
 
-    private var curTitle: String = "Estudio EQ"
-    private var curArtist: String = "Estudio EQ"
+    private var curTitle: String = "Estudio Master Hi-Res"
+    private var curArtist: String = "Estudio Master Hi-Res"
     private var curPlaying: Boolean = false
     private var curPosMs: Long = 0L
     private var curDurMs: Long = 0L
@@ -81,12 +81,12 @@ class PlaybackService : Service() {
         }
 
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EstudioEQ::AudioWakeLock").apply {
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EstudioMasterHiRes::AudioWakeLock").apply {
             setReferenceCounted(false)
         }
 
         // NO pedimos AudioFocus aquí para no robarle el AudioFocus interno a AudioWebView.
-        mediaSession = MediaSessionCompat(this, "EstudioEQSession").apply {
+        mediaSession = MediaSessionCompat(this, "EstudioMasterHiResSession").apply {
             setCallback(object : MediaSessionCompat.Callback() {
                 override fun onPlay() {
                     commandHandler?.invoke("play", 0L)
@@ -287,7 +287,7 @@ class PlaybackService : Service() {
     private fun createChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Reproducción de Estudio EQ",
+            "Reproducción de Estudio Master Hi-Res",
             NotificationManager.IMPORTANCE_LOW
         ).apply {
             description = "Controles en pantalla de bloqueo y reproducción continua"

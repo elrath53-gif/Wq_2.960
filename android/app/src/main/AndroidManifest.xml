@@ -20,6 +20,9 @@
     <!-- Vibración física del teléfono con los golpes de graves -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Inspección y configuración directa del DAC en puerto Jack 3.5 mm / USB-C -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <application
         android:allowBackup="true"
         android:hardwareAccelerated="true"

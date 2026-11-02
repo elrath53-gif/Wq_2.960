@@ -122,7 +122,7 @@ object MusicScanner {
                     obj.put("kbps", kbps)
                     obj.put("duration", if (durationMs > 0) durationMs / 1000L else 0L)
                     obj.put("dateAdded", dateAdded)
-                    obj.put("url", "https://estudioeq.local/media/$id")
+                    obj.put("url", "https://estudiomaster.local/media/$id")
                     arr.put(obj)
                 }
             }

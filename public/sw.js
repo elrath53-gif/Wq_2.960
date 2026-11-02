@@ -1,5 +1,5 @@
-const CACHE = 'estudio-eq-prisma-v5';
-const STATIC_ASSETS = ['/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
+const CACHE = 'estudio-master-hires-prisma-v1';
+const STATIC_ASSETS = ['/manifest.json', '/icons/icon-192.png?v=master1', '/icons/icon-512.png?v=master1'];
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();

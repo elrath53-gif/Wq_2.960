@@ -4,8 +4,8 @@ import android.content.Context
 import java.io.File
 
 object NativeStore {
-    private const val FILE_NAME = "estudio_eq_data.json"
-    private const val TMP_NAME = "estudio_eq_data.json.tmp"
+    private const val FILE_NAME = "estudio_master_hires_data.json"
+    private const val TMP_NAME = "estudio_master_hires_data.json.tmp"
     private val lock = Any()
 
     fun save(context: Context, json: String): Boolean {

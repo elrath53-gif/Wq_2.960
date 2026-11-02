@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Estudio EQ</title>
-<meta name="theme-color" content="#03020A">
+<title>Estudio Master Hi-Res</title>
+<meta name="theme-color" content="#05030F">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Estudio EQ">
+<meta name="apple-mobile-web-app-title" content="Master HiRes">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" href="icons/icon-192.png">
@@ -197,23 +197,57 @@ header.top {
 }
 
 header.top h1 {
-  font-size: 16.5px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   margin: 0;
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   text-transform: uppercase;
   color: #FFFFFF;
   text-shadow: 0 0 18px rgba(0, 229, 255, 0.30);
 }
 
-header.top h1 span {
+header.top .brand-ico {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  object-fit: cover;
+  filter: drop-shadow(0 2px 8px rgba(0, 229, 255, 0.28));
+}
+
+header.top .brand-txt {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+header.top h1 span span {
   color: var(--acc);
-  font-weight: 500;
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  header.top {
+    gap: 6px;
+  }
+  header.top h1 {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    line-height: 1.12;
+    gap: 6px;
+  }
+  header.top .brand-txt {
+    display: flex;
+    flex-direction: column;
+    white-space: normal;
+  }
 }
 
 header.top .btn {
@@ -1303,7 +1337,7 @@ canvas.radar {
 <div id="root">
   <div class="studio-shell">
     <header class="top">
-      <h1>Estudio <span>EQ</span></h1>
+      <h1 class="brand-title"><img src="icons/icon-192.png" alt="" aria-hidden="true" class="brand-ico"><span class="brand-txt">Estudio <span>Master Hi-Res</span></span></h1>
       <button class="sw" id="bypass" role="switch" aria-checked="true" aria-label="Procesado de audio activo"><i></i></button>
       <button class="btn pri" id="saveAll" type="button">Guardar</button>
       <button class="btn ghost" id="resetAll" type="button">Cero</button>
@@ -1330,6 +1364,7 @@ canvas.radar {
 </div>
 <script>
 (() => {
+  // src/estudioEq.ts
   function bootEstudioEQ(rootEl) {
     if (window.__estudioEqBooted) return;
     window.__estudioEqBooted = true;
@@ -1471,8 +1506,12 @@ canvas.radar {
     ];
     const FXN = {
       tone: "Tono y filtros",
-      comp: "Compresor",
+      comp: "Compresor maestro",
+      mbcomp: "Compresor multibanda (3 bandas)",
+      deess: "De-Esser vocal din\xE1mico",
       sat: "Saturaci\xF3n anal\xF3gica 4\xD7",
+      airexc: "Excitador de aire arm\xF3nico 4\xD7",
+      bmono: "Centrador de subgraves (Mono)",
       xfeed: "Crossfeed de aud\xEDfonos",
       wid: "Ancho est\xE9reo M/S",
       rev: "Reverberaci\xF3n HD",
@@ -1490,6 +1529,8 @@ canvas.radar {
       INST.forEach((g) => g.items.forEach(([id, , f, q]) => inst[id] = { g: 0, f, q }));
       return {
         master: { pre: 0, vol: 0, ceil: -0.1, autoHead: false },
+        play: { xfade: 0, gapless: true, rate: 1, keepPitch: true, hz432: false },
+        jack: { hiRes: true, rate: 0, dither24: true },
         playerVol: 100,
         q30: 4.32,
         r30: 12,
@@ -1503,7 +1544,11 @@ canvas.radar {
         fx: {
           tone: { bass: 0, bassF: 100, treb: 0, trebF: 8e3, lc: 20, hc: 2e4 },
           comp: { on: false, th: 0, ratio: 1, attack: 3, release: 250, knee: 0, makeup: 0 },
+          mbcomp: { on: false, lowX: 160, highX: 3200, lowTh: -20, midTh: -18, highTh: -20, ratio: 3, lowG: 0, midG: 0, highG: 0 },
+          deess: { on: false, freq: 6800, th: -24, amt: 6 },
           sat: { on: false, drive: 0, mix: 0, mode: 0 },
+          airexc: { on: false, freq: 9500, drive: 25, mix: 0 },
+          bmono: { on: false, freq: 100, mono: 100 },
           xfeed: { on: false, mix: 30, fc: 700 },
           wid: { on: false, w: 0 },
           rev: { on: false, mix: 0, decay: 2, pre: 0, damp: 30, size: 50 },
@@ -1536,6 +1581,7 @@ canvas.radar {
     }
     const SEC = {
       master: { n: "Entrada y salida", get: (s) => clone(s.master), set: (s, d) => merge(s.master, d) },
+      play: { n: "Transici\xF3n y motor de reproducci\xF3n", get: (s) => clone(s.play), set: (s, d) => merge(s.play, d) },
       eq30: {
         n: "EQ de 30 bandas",
         get: (s) => ({ eq: s.eq.slice(), q30: s.q30, r30: s.r30, propQ30: !!s.propQ30 }),
@@ -1579,6 +1625,7 @@ canvas.radar {
     });
     const ORDER = [
       "master",
+      "play",
       "eq30",
       "cl16",
       "drums",
@@ -1588,7 +1635,11 @@ canvas.radar {
       "keys",
       "tone",
       "comp",
+      "mbcomp",
+      "deess",
       "sat",
+      "airexc",
+      "bmono",
       "xfeed",
       "wid",
       "rev",
@@ -1607,8 +1658,8 @@ canvas.radar {
       return o;
     };
     const resetSec = (k) => SEC[k].set(S, SEC[k].get(D));
-    const KEY = "estudio-eq-v1";
-    const LAST_TRACK_KEY = "estudio-eq-last-track";
+    const KEY = "estudio-master-hires-v1";
+    const LAST_TRACK_KEY = "estudio-master-hires-last-track";
     const store = { last: null, presets: [], sec: {} };
     let savedRepeat = 0;
     let savedShuffle = false;
@@ -1671,6 +1722,7 @@ canvas.radar {
         data: getFull(),
         bypass: !!S.bypass,
         locks: clone(S.locks || {}),
+        jack: clone(S.jack || { hiRes: true, rate: 0, dither24: true }),
         playerVol: clamp(isFinite(+S.playerVol) ? +S.playerVol : 100, 0, 100),
         repeat: savedRepeat,
         shuffle: savedShuffle,
@@ -1699,6 +1751,11 @@ canvas.radar {
       }
       S.bypass = !!store.last.bypass;
       S.locks = store.last.locks && typeof store.last.locks === "object" ? store.last.locks : {};
+      if (store.last.jack && typeof store.last.jack === "object") {
+        if (typeof store.last.jack.hiRes === "boolean") S.jack.hiRes = store.last.jack.hiRes;
+        if ([0, 48e3, 96e3, 192e3].includes(+store.last.jack.rate)) S.jack.rate = +store.last.jack.rate;
+        if (typeof store.last.jack.dither24 === "boolean") S.jack.dither24 = store.last.jack.dither24;
+      }
       if (store.last.playerVol != null && isFinite(+store.last.playerVol)) S.playerVol = clamp(+store.last.playerVol, 0, 100);
       if ([0, 1, 2].includes(+store.last.repeat)) savedRepeat = +store.last.repeat;
       if (typeof store.last.shuffle === "boolean") savedShuffle = store.last.shuffle;
@@ -1711,17 +1768,55 @@ canvas.radar {
     }
     const stamp = () => (/* @__PURE__ */ new Date()).toLocaleString("es", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
     let ctx = null;
+    let deckA;
+    let deckB;
     let audio;
+    let standbyAudio;
+    let activeDeck = "A";
+    let engineGen = 0;
+    let rebuildingCtx = false;
+    let lastTargetRate = -1;
     let workletReady = false;
+    let eq64Ready = false;
+    let ditherReady = false;
+    let jackStatusEl = null;
+    let jackHw = {
+      jackConnected: false,
+      portType: NATIVE ? "speaker" : "web",
+      deviceName: NATIVE ? "Altavoz del tel\xE9fono" : "Salida del sistema / Jack",
+      nativeRate: 48e3,
+      framesPerBuffer: 256,
+      arbitraryRates: !NATIVE,
+      maxSampleRate: NATIVE ? 48e3 : 192e3,
+      supportedRates: NATIVE ? [48e3] : [48e3, 96e3, 192e3],
+      bitDepth: 24,
+      floatPcm: true
+    };
     const N = {};
     let irKey = "";
     let irT = 0;
     let satSig = "";
+    let airDriveSig = -1;
     let harmDrive = -1;
     let ceilSig = -999;
+    let eq64Sig = "";
     let vizDirty = true;
     const P_CACHE = /* @__PURE__ */ Object.create(null);
-    const FX_CONN = { harm: false, sat: false, xfeed: false, sp: false, rev: false, dly: false };
+    const FX_CONN = {
+      harm: false,
+      sat: false,
+      airexc: false,
+      mbcomp: false,
+      deess: false,
+      bmono: false,
+      xfeed: false,
+      sp: false,
+      rev: false,
+      dly: false,
+      trem: false,
+      vibr: false,
+      dither: false
+    };
     const chain = (...n) => {
       for (let i = 0; i < n.length - 1; i++) n[i].connect(n[i + 1]);
     };
@@ -1737,6 +1832,60 @@ canvas.radar {
         } catch (_e) {
         }
       }
+    }
+    function biquadCoeffs64(type, f, Q, gainDb, fs) {
+      const w0 = 2 * Math.PI * clamp(f, 10, fs * 0.495) / fs;
+      const cosw = Math.cos(w0);
+      const sinw = Math.sin(w0);
+      let b0 = 1, b1 = 0, b2 = 0, a0 = 1, a1 = 0, a2 = 0;
+      if (type === "peaking") {
+        const A = Math.pow(10, gainDb / 40);
+        const alpha = sinw / (2 * Math.max(0.1, Q));
+        b0 = 1 + alpha * A;
+        b1 = -2 * cosw;
+        b2 = 1 - alpha * A;
+        a0 = 1 + alpha / A;
+        a1 = -2 * cosw;
+        a2 = 1 - alpha / A;
+      } else if (type === "highpass") {
+        const alpha = sinw / (2 * Math.max(0.1, Q));
+        b0 = (1 + cosw) * 0.5;
+        b1 = -(1 + cosw);
+        b2 = (1 + cosw) * 0.5;
+        a0 = 1 + alpha;
+        a1 = -2 * cosw;
+        a2 = 1 - alpha;
+      } else if (type === "lowpass") {
+        const alpha = sinw / (2 * Math.max(0.1, Q));
+        b0 = (1 - cosw) * 0.5;
+        b1 = 1 - cosw;
+        b2 = (1 - cosw) * 0.5;
+        a0 = 1 + alpha;
+        a1 = -2 * cosw;
+        a2 = 1 - alpha;
+      } else if (type === "lowshelf") {
+        const A = Math.pow(10, gainDb / 40);
+        const sqA = Math.sqrt(A);
+        const alpha = sinw * 0.5 * Math.SQRT2;
+        b0 = A * (A + 1 - (A - 1) * cosw + 2 * sqA * alpha);
+        b1 = 2 * A * (A - 1 - (A + 1) * cosw);
+        b2 = A * (A + 1 - (A - 1) * cosw - 2 * sqA * alpha);
+        a0 = A + 1 + (A - 1) * cosw + 2 * sqA * alpha;
+        a1 = -2 * (A - 1 + (A + 1) * cosw);
+        a2 = A + 1 + (A - 1) * cosw - 2 * sqA * alpha;
+      } else if (type === "highshelf") {
+        const A = Math.pow(10, gainDb / 40);
+        const sqA = Math.sqrt(A);
+        const alpha = sinw * 0.5 * Math.SQRT2;
+        b0 = A * (A + 1 + (A - 1) * cosw + 2 * sqA * alpha);
+        b1 = -2 * A * (A - 1 + (A + 1) * cosw);
+        b2 = A * (A + 1 + (A - 1) * cosw - 2 * sqA * alpha);
+        a0 = A + 1 - (A - 1) * cosw + 2 * sqA * alpha;
+        a1 = 2 * (A - 1 - (A + 1) * cosw);
+        a2 = A + 1 - (A - 1) * cosw - 2 * sqA * alpha;
+      }
+      const invA0 = 1 / a0;
+      return [b0 * invA0, b1 * invA0, b2 * invA0, a1 * invA0, a2 * invA0];
     }
     function makeCeilingCurve(ceilDb) {
       const n = 16384;
@@ -1756,9 +1905,77 @@ canvas.radar {
       }
       return c;
     }
-    async function attachLookaheadLimiter() {
+    async function attachMasteringWorklets(gen) {
       if (!ctx || !ctx.audioWorklet || typeof Blob === "undefined" || typeof URL === "undefined") return;
+      const localCtx = ctx;
       const workletCode = `
+      class EstudioEq64Processor extends AudioWorkletProcessor {
+        constructor() {
+          super();
+          const MAX = 80;
+          this.z1L = new Float64Array(MAX);
+          this.z2L = new Float64Array(MAX);
+          this.z1R = new Float64Array(MAX);
+          this.z2R = new Float64Array(MAX);
+          this.activeMask = new Uint8Array(MAX);
+          this.secs = [];
+          this.port.onmessage = (e) => {
+            const arr = e.data;
+            if (!Array.isArray(arr)) return;
+            const nextMask = new Uint8Array(MAX);
+            for (let i = 0; i < arr.length; i++) {
+              const s = arr[i][0] | 0;
+              nextMask[s] = 1;
+              if (!this.activeMask[s]) {
+                this.z1L[s] = 0; this.z2L[s] = 0;
+                this.z1R[s] = 0; this.z2R[s] = 0;
+              }
+            }
+            this.activeMask = nextMask;
+            this.secs = arr;
+          };
+        }
+        process(inputs, outputs) {
+          const inp = inputs[0];
+          const out = outputs[0];
+          if (!inp || !inp.length || !out || !out.length) return true;
+          const inL = inp[0];
+          const inR = inp.length > 1 ? inp[1] : inp[0];
+          const outL = out[0];
+          const outR = out.length > 1 ? out[1] : null;
+          const secs = this.secs;
+          const nSec = secs.length;
+          if (nSec === 0) {
+            outL.set(inL);
+            if (outR) outR.set(inR);
+            return true;
+          }
+          const z1L = this.z1L, z2L = this.z2L, z1R = this.z1R, z2R = this.z2R;
+          const frames = inL.length;
+          for (let i = 0; i < frames; i++) {
+            let xL = inL[i];
+            let xR = inR[i];
+            for (let k = 0; k < nSec; k++) {
+              const sc = secs[k];
+              const s = sc[0];
+              const b0 = sc[1], b1 = sc[2], b2 = sc[3], a1 = sc[4], a2 = sc[5];
+              const yL = b0 * xL + z1L[s];
+              z1L[s] = b1 * xL - a1 * yL + z2L[s];
+              z2L[s] = b2 * xL - a2 * yL;
+              xL = yL;
+              const yR = b0 * xR + z1R[s];
+              z1R[s] = b1 * xR - a1 * yR + z2R[s];
+              z2R[s] = b2 * xR - a2 * yR;
+              xR = yR;
+            }
+            outL[i] = xL;
+            if (outR) outR[i] = xR;
+          }
+          return true;
+        }
+      }
+      registerProcessor('estudio-eq64', EstudioEq64Processor);
+
       class EstudioBrickwallProcessor extends AudioWorkletProcessor {
         static get parameterDescriptors() {
           return [{ name: 'ceiling', defaultValue: 0.9885, minValue: 0.25, maxValue: 0.999, automationRate: 'k-rate' }];
@@ -1817,13 +2034,84 @@ canvas.radar {
         }
       }
       registerProcessor('estudio-brickwall', EstudioBrickwallProcessor);
+
+      class EstudioTpdf24Processor extends AudioWorkletProcessor {
+        constructor() {
+          super();
+          this.sL = 0x6d2b79f5;
+          this.sR = 0x9e3779b9;
+        }
+        process(inputs, outputs) {
+          const inp = inputs[0];
+          const out = outputs[0];
+          if (!inp || !inp.length || !out || !out.length) return true;
+          const inL = inp[0];
+          const inR = inp.length > 1 ? inp[1] : inp[0];
+          const outL = out[0];
+          const outR = out.length > 1 ? out[1] : null;
+          const n = inL.length;
+          let peak = 0;
+          for (let i = 0; i < n; i++) {
+            const a = Math.abs(inL[i]);
+            const b = Math.abs(inR[i]);
+            if (a > peak) peak = a;
+            if (b > peak) peak = b;
+          }
+          if (peak < 1e-9) {
+            outL.set(inL);
+            if (outR) outR.set(inR);
+            return true;
+          }
+          const lsb = 1.1920928955078125e-7;
+          const inv = 2.3283064365386963e-10;
+          let sL = this.sL | 0;
+          let sR = this.sR | 0;
+          for (let i = 0; i < n; i++) {
+            sL ^= sL << 13; sL ^= sL >>> 17; sL ^= sL << 5;
+            const r1L = (sL >>> 0) * inv;
+            sL ^= sL << 13; sL ^= sL >>> 17; sL ^= sL << 5;
+            const r2L = (sL >>> 0) * inv;
+            let yL = inL[i] + (r1L - r2L) * lsb;
+            if (yL > 0.9999998) yL = 0.9999998;
+            else if (yL < -0.9999998) yL = -0.9999998;
+            outL[i] = yL;
+            if (outR) {
+              sR ^= sR << 13; sR ^= sR >>> 17; sR ^= sR << 5;
+              const r1R = (sR >>> 0) * inv;
+              sR ^= sR << 13; sR ^= sR >>> 17; sR ^= sR << 5;
+              const r2R = (sR >>> 0) * inv;
+              let yR = inR[i] + (r1R - r2R) * lsb;
+              if (yR > 0.9999998) yR = 0.9999998;
+              else if (yR < -0.9999998) yR = -0.9999998;
+              outR[i] = yR;
+            }
+          }
+          this.sL = sL;
+          this.sR = sR;
+          return true;
+        }
+      }
+      registerProcessor('estudio-tpdf24', EstudioTpdf24Processor);
     `;
       let url = "";
       try {
         const blob = new Blob([workletCode], { type: "application/javascript" });
         url = URL.createObjectURL(blob);
-        await ctx.audioWorklet.addModule(url);
-        const bw = new AudioWorkletNode(ctx, "estudio-brickwall", {
+        await localCtx.audioWorklet.addModule(url);
+        if (gen !== engineGen || ctx !== localCtx) return;
+        const eq64 = new AudioWorkletNode(localCtx, "estudio-eq64", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [2]
+        });
+        N.eq64 = eq64;
+        safeConn(N.eqTrim, N.dc, false);
+        safeConn(N.vRes, N.xIn, false);
+        N.eqTrim.connect(eq64);
+        eq64.connect(N.xIn);
+        eq64Ready = true;
+        eq64Sig = "";
+        const bw = new AudioWorkletNode(localCtx, "estudio-brickwall", {
           numberOfInputs: 1,
           numberOfOutputs: 1,
           outputChannelCount: [2]
@@ -1835,35 +2123,136 @@ canvas.radar {
         safeConn(N.clipSafe, N.an, false);
         N.master.connect(bw);
         bw.connect(N.an);
+        const dither = new AudioWorkletNode(localCtx, "estudio-tpdf24", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [2]
+        });
+        N.dither = dither;
+        ditherReady = true;
         workletReady = true;
+        applyAll(true);
         updateEngineSpecUi();
+        paintJackStatus();
       } catch (_e) {
-        workletReady = false;
+        if (gen === engineGen) {
+          workletReady = false;
+          eq64Ready = false;
+          ditherReady = false;
+        }
       } finally {
         if (url) URL.revokeObjectURL(url);
       }
     }
-    function build() {
+    function makeDeckEl() {
+      const el = new Audio();
+      el.setAttribute("playsinline", "");
+      el.preload = "auto";
+      el.preservesPitch = true;
+      el.webkitPreservesPitch = true;
+      el.volume = 1;
+      return el;
+    }
+    function parseNativeJackJson(raw) {
+      try {
+        const o = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (!o || typeof o !== "object") return null;
+        const obj = o;
+        const rates = Array.isArray(obj.supportedRates) ? obj.supportedRates.map((x) => +x).filter((x) => isFinite(x) && x >= 44100) : [48e3];
+        return {
+          jackConnected: !!obj.jackConnected,
+          portType: obj.portType || "speaker",
+          deviceName: String(obj.deviceName || (obj.jackConnected ? "Puerto Jack 3.5 mm" : "Altavoz del tel\xE9fono")),
+          nativeRate: +obj.nativeRate || 48e3,
+          framesPerBuffer: +obj.framesPerBuffer || 256,
+          arbitraryRates: !!obj.arbitraryRates,
+          maxSampleRate: +obj.maxSampleRate || 48e3,
+          supportedRates: rates.length ? rates : [48e3],
+          bitDepth: +obj.bitDepth || 24,
+          floatPcm: obj.floatPcm !== false
+        };
+      } catch (_e) {
+        return null;
+      }
+    }
+    function refreshNativeJackSync() {
+      if (!NATIVE || !window.AndroidBridge?.getJackHiResInfo) return;
+      try {
+        const parsed = parseNativeJackJson(window.AndroidBridge.getJackHiResInfo());
+        if (parsed) jackHw = parsed;
+      } catch (_e) {
+      }
+    }
+    function computeDesiredSampleRate() {
+      if (!S.jack.hiRes) return 0;
+      const manual = +S.jack.rate || 0;
+      if (manual === 48e3 || manual === 96e3 || manual === 192e3) return manual;
+      if (NATIVE) {
+        if (!jackHw.jackConnected) return 0;
+        if (!jackHw.arbitraryRates && jackHw.maxSampleRate >= 176400) {
+          return Math.min(192e3, jackHw.maxSampleRate);
+        }
+        if (jackHw.arbitraryRates || jackHw.maxSampleRate >= 88200) {
+          return 96e3;
+        }
+        return jackHw.maxSampleRate || 48e3;
+      }
+      return 96e3;
+    }
+    function createAudioContextAtRate(AC, targetRate) {
+      const candidates = [];
+      if (targetRate > 0) {
+        candidates.push(targetRate);
+        if (targetRate > 96e3) candidates.push(96e3);
+        if (targetRate > 48e3) candidates.push(48e3);
+      }
+      candidates.push(void 0);
+      for (const sr of candidates) {
+        try {
+          return sr ? new AC({ latencyHint: "playback", sampleRate: sr }) : new AC({ latencyHint: "playback" });
+        } catch (_e) {
+        }
+      }
+      return new AC();
+    }
+    function build(targetRate = computeDesiredSampleRate(), attachEvents) {
       const AC = window.AudioContext || window.webkitAudioContext;
-      audio = new Audio();
-      audio.setAttribute("playsinline", "");
-      audio.preload = "auto";
-      audio.preservesPitch = false;
-      audio.webkitPreservesPitch = false;
-      audio.volume = 1;
+      const gen = ++engineGen;
+      lastTargetRate = targetRate;
+      if (NATIVE && window.AndroidBridge?.configureJackHiRes) {
+        try {
+          const updated = parseNativeJackJson(
+            window.AndroidBridge.configureJackHiRes(!!S.jack.hiRes, targetRate || jackHw.nativeRate || 48e3)
+          );
+          if (updated) jackHw = updated;
+        } catch (_e) {
+        }
+      }
+      deckA = makeDeckEl();
+      deckB = makeDeckEl();
+      audio = deckA;
+      standbyAudio = deckB;
+      activeDeck = "A";
+      if (attachEvents) {
+        attachEvents(deckA);
+        attachEvents(deckB);
+      }
       if (!AC) {
         toast("Este navegador no admite audio avanzado.");
         return;
       }
-      ctx = new AC({ latencyHint: "playback" });
+      ctx = createAudioContextAtRate(AC, targetRate);
       ctx.addEventListener("statechange", () => {
+        if (gen !== engineGen) return;
         if (audio && !audio.paused && ctx && ctx.state === "suspended") {
           ctx.resume().catch(() => {
           });
         }
         updateEngineSpecUi();
+        paintJackStatus();
       });
-      const src = ctx.createMediaElementSource(audio);
+      const srcA = ctx.createMediaElementSource(deckA);
+      const srcB = ctx.createMediaElementSource(deckB);
       const g = (v = 1) => {
         const n = ctx.createGain();
         n.gain.value = v;
@@ -1877,6 +2266,13 @@ canvas.radar {
         n.gain.value = gn;
         return n;
       };
+      N.gA = g(1);
+      N.gB = g(0);
+      N.deckSum = g(1);
+      srcA.connect(N.gA);
+      srcB.connect(N.gB);
+      N.gA.connect(N.deckSum);
+      N.gB.connect(N.deckSum);
       N.pre = g();
       N.pre.channelCount = 2;
       N.pre.channelCountMode = "explicit";
@@ -1891,12 +2287,66 @@ canvas.radar {
       INST.forEach((gr) => gr.items.forEach(([id, , f, q]) => N.inst[id] = bq("peaking", f, q)));
       N.bass = bq("lowshelf", 100);
       N.treb = bq("highshelf", 8e3);
+      N.vSub = bq("peaking", 50, 1.2);
+      N.vRes = bq("peaking", 90, 6);
+      N.xIn = g();
+      N.xLp = bq("lowpass", 120, 0.7071);
+      N.xSh = ctx.createWaveShaper();
+      N.xSh.oversample = "4x";
+      N.xHp = bq("highpass", 32, 0.7071);
+      N.xWet = g(0);
+      N.xSum = g();
+      N.trem = g(1);
+      N.tLfo = ctx.createOscillator();
+      N.tG = g(0);
+      N.vibDry = g(1);
+      N.vib = ctx.createDelay(0.05);
+      N.vib.delayTime.value = 0.01;
+      N.vibWet = g(0);
+      N.vLfo = ctx.createOscillator();
+      N.vG = g(0);
+      N.vOut = g();
       N.satDry = g();
       N.shaper = ctx.createWaveShaper();
       N.shaper.oversample = "4x";
       N.satDc = bq("highpass", 15, 0.7071);
       N.satWet = g(0);
+      N.airHp = bq("highpass", 9500, 0.7071);
+      N.airSh = ctx.createWaveShaper();
+      N.airSh.oversample = "4x";
+      N.airClean = bq("highpass", 5500, 0.7071);
+      N.airWet = g(0);
       N.satSum = g();
+      N.deDry = g(1);
+      N.deLow = bq("lowpass", 6800, 0.7071);
+      N.deHigh = bq("highpass", 6800, 0.7071);
+      N.deComp = ctx.createDynamicsCompressor();
+      N.deComp.knee.value = 4;
+      N.deComp.ratio.value = 6;
+      N.deComp.attack.value = 8e-4;
+      N.deComp.release.value = 0.042;
+      N.deWet = g(0);
+      N.deOut = g(1);
+      N.mbDry = g(1);
+      N.mbLp1 = bq("lowpass", 160, 0.7071);
+      N.mbHp1 = bq("highpass", 160, 0.7071);
+      N.mbLp2 = bq("lowpass", 3200, 0.7071);
+      N.mbHp2 = bq("highpass", 3200, 0.7071);
+      const mkMbComp = () => {
+        const c = ctx.createDynamicsCompressor();
+        c.knee.value = 6;
+        c.attack.value = 8e-3;
+        c.release.value = 0.14;
+        return c;
+      };
+      N.mbLowC = mkMbComp();
+      N.mbMidC = mkMbComp();
+      N.mbHighC = mkMbComp();
+      N.mbLowG = g(1);
+      N.mbMidG = g(1);
+      N.mbHighG = g(1);
+      N.mbWet = g(0);
+      N.mbOut = g(1);
       N.comp = ctx.createDynamicsCompressor();
       N.makeup = g();
       N.split = ctx.createChannelSplitter(2);
@@ -1906,6 +2356,15 @@ canvas.radar {
       N.sw = g(1);
       N.inv = g(-1);
       N.merge = ctx.createChannelMerger(2);
+      N.bmDry = g(1);
+      N.bmSplit = ctx.createChannelSplitter(2);
+      N.bmSL = g(0.5);
+      N.bmSR = g(-0.5);
+      N.bmLp = bq("lowpass", 100, 0.7071);
+      N.bmNegL = g(0);
+      N.bmPosR = g(0);
+      N.bmMerge = ctx.createChannelMerger(2);
+      N.bmOut = g(1);
       N.xfDry = g(1);
       N.xfSplit = ctx.createChannelSplitter(2);
       N.xfDL = ctx.createDelay(0.01);
@@ -1947,42 +2406,53 @@ canvas.radar {
       N.clipSafe.oversample = "4x";
       N.clipSafe.curve = makeCeilingCurve(S.master.ceil);
       N.an = ctx.createAnalyser();
-      N.an.fftSize = 4096;
+      N.an.fftSize = ctx.sampleRate >= 16e4 ? 16384 : ctx.sampleRate >= 88200 ? 8192 : 4096;
       N.an.minDecibels = -92;
       N.an.maxDecibels = -6;
       N.an.smoothingTimeConstant = 0.78;
       N.pvol = g(clamp(S.playerVol, 0, 100) / 100);
-      chain(src, N.pre, N.eqTrim, N.dc, N.hp, N.lp, ...N.eq, ...N.cl, ...Object.values(N.inst), N.bass, N.treb);
-      N.vSub = bq("peaking", 50, 1.2);
-      N.vRes = bq("peaking", 90, 6);
-      N.xIn = g();
-      N.xLp = bq("lowpass", 120, 0.7071);
-      N.xSh = ctx.createWaveShaper();
-      N.xSh.oversample = "4x";
-      N.xHp = bq("highpass", 32, 0.7071);
-      N.xWet = g(0);
-      N.xSum = g();
-      N.trem = g(1);
-      N.tLfo = ctx.createOscillator();
-      N.tG = g(0);
-      N.vib = ctx.createDelay(0.05);
-      N.vib.delayTime.value = 0.01;
-      N.vLfo = ctx.createOscillator();
-      N.vG = g(0);
-      N.vOut = g();
-      chain(N.treb, N.vSub, N.vRes, N.xIn, N.xSum);
+      chain(
+        N.deckSum,
+        N.pre,
+        N.eqTrim,
+        N.dc,
+        N.hp,
+        N.lp,
+        ...N.eq,
+        ...N.cl,
+        ...Object.values(N.inst),
+        N.bass,
+        N.treb,
+        N.vSub,
+        N.vRes,
+        N.xIn,
+        N.xSum
+      );
       chain(N.xLp, N.xSh, N.xHp, N.xWet, N.xSum);
-      chain(N.xSum, N.trem, N.vib, N.vOut);
+      N.xSum.connect(N.trem);
+      N.trem.connect(N.vibDry);
+      N.vibDry.connect(N.vOut);
+      chain(N.vib, N.vibWet, N.vOut);
       N.tLfo.connect(N.tG);
-      N.tG.connect(N.trem.gain);
       N.vLfo.connect(N.vG);
-      N.vG.connect(N.vib.delayTime);
       N.tLfo.start();
       N.vLfo.start();
       N.vOut.connect(N.satDry);
       N.satDry.connect(N.satSum);
       chain(N.shaper, N.satDc, N.satWet, N.satSum);
-      chain(N.satSum, N.comp, N.makeup, N.split);
+      chain(N.airHp, N.airSh, N.airClean, N.airWet, N.satSum);
+      N.satSum.connect(N.deDry);
+      N.deDry.connect(N.deOut);
+      N.deLow.connect(N.deWet);
+      chain(N.deHigh, N.deComp, N.deWet);
+      N.deWet.connect(N.deOut);
+      N.deOut.connect(N.mbDry);
+      N.mbDry.connect(N.mbOut);
+      chain(N.mbLp1, N.mbLowC, N.mbLowG, N.mbWet);
+      chain(N.mbHp1, N.mbLp2, N.mbMidC, N.mbMidG, N.mbWet);
+      chain(N.mbHp2, N.mbHighC, N.mbHighG, N.mbWet);
+      N.mbWet.connect(N.mbOut);
+      chain(N.mbOut, N.comp, N.makeup, N.split);
       N.split.connect(N.mid, 0);
       N.split.connect(N.mid, 1);
       N.split.connect(N.sL, 0);
@@ -1994,7 +2464,18 @@ canvas.radar {
       N.sw.connect(N.merge, 0, 0);
       N.mid.connect(N.merge, 0, 1);
       N.inv.connect(N.merge, 0, 1);
-      N.merge.connect(N.xfDry);
+      N.merge.connect(N.bmDry);
+      N.bmDry.connect(N.bmOut);
+      N.bmSplit.connect(N.bmSL, 0);
+      N.bmSplit.connect(N.bmSR, 1);
+      N.bmSL.connect(N.bmLp);
+      N.bmSR.connect(N.bmLp);
+      N.bmLp.connect(N.bmNegL);
+      N.bmLp.connect(N.bmPosR);
+      N.bmNegL.connect(N.bmMerge, 0, 0);
+      N.bmPosR.connect(N.bmMerge, 0, 1);
+      N.bmMerge.connect(N.bmOut);
+      N.bmOut.connect(N.xfDry);
       N.xfDry.connect(N.xfOut);
       N.xfSplit.connect(N.xfDL, 0);
       N.xfDL.connect(N.xfLpL);
@@ -2015,10 +2496,10 @@ canvas.radar {
       N.dTone.connect(N.fb);
       N.fb.connect(N.dly);
       chain(N.fxSum, N.wet, N.master);
-      src.connect(N.direct);
+      N.deckSum.connect(N.direct);
       N.direct.connect(N.master);
       chain(N.master, N.lim, N.clipSafe, N.an, N.pvol, ctx.destination);
-      attachLookaheadLimiter();
+      attachMasteringWorklets(gen);
     }
     function TP(key, p, v) {
       const prev = P_CACHE[key];
@@ -2072,7 +2553,8 @@ canvas.radar {
     }
     function makeIR(dec, damp, size) {
       const sr = ctx.sampleRate;
-      const len = Math.max(128, Math.floor(sr * Math.max(0.1, dec)));
+      const safeDec = sr > 96e3 ? Math.min(3.2, Math.max(0.1, dec)) : Math.max(0.1, dec);
+      const len = Math.max(128, Math.floor(sr * safeDec));
       const b = ctx.createBuffer(2, len, sr);
       const sz = clamp(size, 0, 100) / 100;
       const dm = clamp(damp, 0, 100) / 100;
@@ -2136,6 +2618,19 @@ canvas.radar {
       TP("pvol", N.pvol.gain, clamp(S.playerVol, 0, 100) / 100);
       TP("wet", N.wet.gain, S.bypass ? 0 : 1);
       TP("dir", N.direct.gain, S.bypass ? 1 : 0);
+      const baseRate = clamp(isFinite(+S.play.rate) ? +S.play.rate : 1, 0.5, 1.5);
+      const effRate = S.play.hz432 ? baseRate * (432 / 440) : baseRate;
+      const keepP = S.play.hz432 ? false : !!S.play.keepPitch;
+      [deckA, deckB].forEach((el) => {
+        if (!el) return;
+        if (el.preservesPitch !== keepP) {
+          el.preservesPitch = keepP;
+          el.webkitPreservesPitch = keepP;
+        }
+        if (Math.abs(el.playbackRate - effRate) > 1e-4) {
+          el.playbackRate = effRate;
+        }
+      });
       const ceilDb = clamp(isFinite(+S.master.ceil) ? +S.master.ceil : -0.1, -6, -0.1);
       if (N.bw) {
         const cp = N.bw.parameters.get("ceiling");
@@ -2144,6 +2639,21 @@ canvas.radar {
         ceilSig = ceilDb;
         N.lim.threshold.value = Math.min(-0.8, ceilDb - 0.8);
         N.clipSafe.curve = makeCeilingCurve(ceilDb);
+      }
+      const wantDither = !!(ditherReady && N.dither && S.jack.hiRes && S.jack.dither24 && (!NATIVE || jackHw.jackConnected || S.jack.rate > 0));
+      if (wantDither !== FX_CONN.dither) {
+        FX_CONN.dither = wantDither;
+        if (wantDither) {
+          safeConn(N.pvol, ctx.destination, false);
+          safeConn(N.pvol, N.dither, true);
+          safeConn(N.dither, ctx.destination, true);
+        } else {
+          safeConn(N.pvol, N.dither, false);
+          safeConn(N.dither, ctx.destination, false);
+          safeConn(N.pvol, ctx.destination, true);
+        }
+        updateEngineSpecUi();
+        paintJackStatus();
       }
       const t = S.fx.tone;
       TP("lc", N.hp.frequency, t.lc);
@@ -2165,6 +2675,7 @@ canvas.radar {
         TP("clg" + i, N.cl[i].gain, gv);
         TP("clq" + i, N.cl[i].Q, calcEffectiveQ(S.q16, gv, !!S.propQ16));
       }
+      let instIdx = 0;
       for (const id in N.inst) {
         const p = S.inst[id];
         const n = N.inst[id];
@@ -2172,6 +2683,75 @@ canvas.radar {
         TP("ig_" + id, n.gain, p.g);
         TP("if_" + id, n.frequency, p.f);
         TP("iq_" + id, n.Q, p.q);
+        instIdx++;
+      }
+      void instIdx;
+      const sb = S.fx.sub;
+      TP("sbg", N.vSub.gain, sb.on ? sb.g : 0);
+      TP("sbf", N.vSub.frequency, sb.freq);
+      TP("sbq", N.vSub.Q, sb.q);
+      const gl = S.fx.glass;
+      TP("glg", N.vRes.gain, gl.on ? gl.g : 0);
+      TP("glf", N.vRes.frequency, gl.freq);
+      TP("glq", N.vRes.Q, gl.q);
+      if (eq64Ready && N.eq64) {
+        const fs = ctx.sampleRate || 48e3;
+        const sigParts = [
+          String(fs),
+          t.lc.toFixed(1),
+          t.hc.toFixed(1),
+          t.bass.toFixed(2),
+          t.bassF.toFixed(1),
+          t.treb.toFixed(2),
+          t.trebF.toFixed(1),
+          S.q30.toFixed(2),
+          String(+!!S.propQ30),
+          S.eq.join(","),
+          S.q16.toFixed(2),
+          String(+!!S.propQ16),
+          S.cl.join(","),
+          sb.on ? `${sb.g},${sb.freq},${sb.q}` : "0",
+          gl.on ? `${gl.g},${gl.freq},${gl.q}` : "0"
+        ];
+        for (const id in S.inst) {
+          const p = S.inst[id];
+          sigParts.push(Math.abs(p.g) >= 5e-3 ? `${id}:${p.g},${p.f},${p.q}` : "");
+        }
+        const nextEqSig = sigParts.join("|");
+        if (nextEqSig !== eq64Sig) {
+          eq64Sig = nextEqSig;
+          const secs = [];
+          if (t.lc > 20.2) secs.push([1, ...biquadCoeffs64("highpass", t.lc, 0.7071, 0, fs)]);
+          if (t.hc < 19980) secs.push([2, ...biquadCoeffs64("lowpass", t.hc, 0.7071, 0, fs)]);
+          for (let i = 0; i < 30; i++) {
+            const gv = S.eq[i];
+            if (Math.abs(gv) >= 5e-3) {
+              secs.push([3 + i, ...biquadCoeffs64("peaking", BANDS30[i], calcEffectiveQ(S.q30, gv, !!S.propQ30), gv, fs)]);
+            }
+          }
+          for (let i = 0; i < 16; i++) {
+            const gv = S.cl[i];
+            if (Math.abs(gv) >= 5e-3) {
+              secs.push([33 + i, ...biquadCoeffs64("peaking", BANDS16[i], calcEffectiveQ(S.q16, gv, !!S.propQ16), gv, fs)]);
+            }
+          }
+          let slot = 49;
+          for (const id in S.inst) {
+            const p = S.inst[id];
+            if (Math.abs(p.g) >= 5e-3) {
+              secs.push([slot, ...biquadCoeffs64("peaking", p.f, p.q, p.g, fs)]);
+            }
+            slot++;
+          }
+          if (Math.abs(t.bass) >= 5e-3) secs.push([70, ...biquadCoeffs64("lowshelf", t.bassF, 0.7071, t.bass, fs)]);
+          if (Math.abs(t.treb) >= 5e-3) secs.push([71, ...biquadCoeffs64("highshelf", t.trebF, 0.7071, t.treb, fs)]);
+          if (sb.on && Math.abs(sb.g) >= 5e-3) secs.push([72, ...biquadCoeffs64("peaking", sb.freq, sb.q, sb.g, fs)]);
+          if (gl.on && Math.abs(gl.g) >= 5e-3) secs.push([73, ...biquadCoeffs64("peaking", gl.freq, gl.q, gl.g, fs)]);
+          if (secs.length > 0) {
+            secs.unshift([0, ...biquadCoeffs64("highpass", 12, 0.7071, 0, fs)]);
+          }
+          N.eq64.port.postMessage(secs);
+        }
       }
       const trimDb = S.master.autoHead && maxBoost > 1.5 ? -Math.min(12, (maxBoost - 1.5) * 0.55) : 0;
       TP("eqtrim", N.eqTrim.gain, dB(trimDb));
@@ -2189,6 +2769,49 @@ canvas.radar {
         TP("cra", N.comp.ratio, 1);
         TP("cmk", N.makeup.gain, 1);
       }
+      const mb = S.fx.mbcomp;
+      const mbActive = !!mb.on;
+      if (mbActive !== FX_CONN.mbcomp) {
+        FX_CONN.mbcomp = mbActive;
+        safeConn(N.deOut, N.mbLp1, mbActive);
+        safeConn(N.deOut, N.mbHp1, mbActive);
+        safeConn(N.deOut, N.mbHp2, mbActive);
+      }
+      TP("mbdry", N.mbDry.gain, mbActive ? 0 : 1);
+      TP("mbwet", N.mbWet.gain, mbActive ? 1 : 0);
+      if (mbActive) {
+        const lx = clamp(mb.lowX, 50, 500);
+        const hx = clamp(mb.highX, 1200, 1e4);
+        TP("mblp1", N.mbLp1.frequency, lx);
+        TP("mbhp1", N.mbHp1.frequency, lx);
+        TP("mblp2", N.mbLp2.frequency, hx);
+        TP("mbhp2", N.mbHp2.frequency, hx);
+        TP("mblth", N.mbLowC.threshold, mb.lowTh);
+        TP("mbmth", N.mbMidC.threshold, mb.midTh);
+        TP("mbhth", N.mbHighC.threshold, mb.highTh);
+        TP("mblra", N.mbLowC.ratio, mb.ratio);
+        TP("mbmra", N.mbMidC.ratio, mb.ratio);
+        TP("mbhra", N.mbHighC.ratio, mb.ratio);
+        TP("mblg", N.mbLowG.gain, dB(mb.lowG));
+        TP("mbmg", N.mbMidG.gain, dB(mb.midG));
+        TP("mbhg", N.mbHighG.gain, dB(mb.highG));
+      }
+      const de = S.fx.deess;
+      const deActive = !!(de.on && de.amt > 0);
+      if (deActive !== FX_CONN.deess) {
+        FX_CONN.deess = deActive;
+        safeConn(N.satSum, N.deLow, deActive);
+        safeConn(N.satSum, N.deHigh, deActive);
+      }
+      TP("dedry", N.deDry.gain, deActive ? 0 : 1);
+      TP("dewet", N.deWet.gain, deActive ? 1 : 0);
+      if (deActive) {
+        const df = clamp(de.freq, 3500, 12e3);
+        TP("delow", N.deLow.frequency, df);
+        TP("dehigh", N.deHigh.frequency, df);
+        TP("deth", N.deComp.threshold, de.th);
+        TP("dera", N.deComp.ratio, clamp(1 + de.amt * 1.4, 1.5, 20));
+      }
       const s = S.fx.sat;
       const satActive = !!(s.on && s.mix > 0);
       if (satActive !== FX_CONN.sat) {
@@ -2203,14 +2826,19 @@ canvas.radar {
       const sm = satActive ? s.mix / 100 : 0;
       TP("swet", N.satWet.gain, sm);
       TP("sdry", N.satDry.gain, 1 - sm);
-      const sb = S.fx.sub;
-      TP("sbg", N.vSub.gain, sb.on ? sb.g : 0);
-      TP("sbf", N.vSub.frequency, sb.freq);
-      TP("sbq", N.vSub.Q, sb.q);
-      const gl = S.fx.glass;
-      TP("glg", N.vRes.gain, gl.on ? gl.g : 0);
-      TP("glf", N.vRes.frequency, gl.freq);
-      TP("glq", N.vRes.Q, gl.q);
+      const ax = S.fx.airexc;
+      const airActive = !!(ax.on && ax.mix > 0);
+      if (airActive !== FX_CONN.airexc) {
+        FX_CONN.airexc = airActive;
+        safeConn(N.vOut, N.airHp, airActive);
+      }
+      if (airActive && ax.drive !== airDriveSig) {
+        airDriveSig = ax.drive;
+        N.airSh.curve = curve(ax.drive * 0.75, 1);
+      }
+      TP("airhp", N.airHp.frequency, clamp(ax.freq, 5e3, 15e3));
+      TP("aircl", N.airClean.frequency, clamp(ax.freq * 0.65, 3500, 11e3));
+      TP("airw", N.airWet.gain, airActive ? ax.mix / 100 * 0.65 : 0);
       const hm = S.fx.harm;
       const harmActive = !!(hm.on && hm.mix > 0);
       if (harmActive !== FX_CONN.harm) {
@@ -2224,22 +2852,51 @@ canvas.radar {
       TP("xlp", N.xLp.frequency, hm.freq);
       TP("xwet", N.xWet.gain, harmActive ? hm.mix / 100 : 0);
       const tr = S.fx.trem;
-      const tShape = ["sine", "triangle", "square"][tr.shape] || "sine";
-      if (N.tLfo.type !== tShape) N.tLfo.type = tShape;
-      TP("trf", N.tLfo.frequency, tr.rate);
-      const td = tr.on ? tr.depth / 100 : 0;
+      const trActive = !!(tr.on && tr.depth > 0);
+      if (trActive !== FX_CONN.trem) {
+        FX_CONN.trem = trActive;
+        safeConn(N.tG, N.trem.gain, trActive);
+      }
+      if (trActive) {
+        const tShape = ["sine", "triangle", "square"][tr.shape] || "sine";
+        if (N.tLfo.type !== tShape) N.tLfo.type = tShape;
+        TP("trf", N.tLfo.frequency, tr.rate);
+      }
+      const td = trActive ? tr.depth / 100 : 0;
       TP("trg", N.trem.gain, 1 - td / 2);
       TP("trd", N.tG.gain, td / 2);
       const vb = S.fx.vibr;
-      TP("vbf", N.vLfo.frequency, vb.rate);
-      TP("vbg", N.vG.gain, vb.on ? vb.depth / 1e3 : 0);
+      const vbActive = !!(vb.on && vb.depth > 0);
+      if (vbActive !== FX_CONN.vibr) {
+        FX_CONN.vibr = vbActive;
+        safeConn(N.trem, N.vib, vbActive);
+        safeConn(N.vG, N.vib.delayTime, vbActive);
+      }
+      TP("vibdry", N.vibDry.gain, vbActive ? 0 : 1);
+      TP("vibwet", N.vibWet.gain, vbActive ? 1 : 0);
+      if (vbActive) {
+        TP("vbf", N.vLfo.frequency, vb.rate);
+        TP("vbg", N.vG.gain, vb.depth / 1e3);
+      } else {
+        TP("vbg", N.vG.gain, 0);
+      }
       const w = S.fx.wid;
       TP("wid", N.sw.gain, w.on ? clamp(1 + w.w / 100, 0, 3) : 1);
+      const bm = S.fx.bmono;
+      const bmActive = !!(bm.on && bm.mono > 0);
+      if (bmActive !== FX_CONN.bmono) {
+        FX_CONN.bmono = bmActive;
+        safeConn(N.merge, N.bmSplit, bmActive);
+      }
+      const bmK = bmActive ? clamp(bm.mono, 0, 100) / 100 : 0;
+      TP("bmlp", N.bmLp.frequency, clamp(bm.freq, 35, 220));
+      TP("bmnegl", N.bmNegL.gain, -bmK);
+      TP("bmposr", N.bmPosR.gain, bmK);
       const xf = S.fx.xfeed;
       const xfActive = !!(xf.on && xf.mix > 0);
       if (xfActive !== FX_CONN.xfeed) {
         FX_CONN.xfeed = xfActive;
-        safeConn(N.merge, N.xfSplit, xfActive);
+        safeConn(N.bmOut, N.xfSplit, xfActive);
       }
       const xfAmt = xfActive ? xf.mix / 100 * 0.42 : 0;
       TP("xfdry", N.xfDry.gain, xfActive ? 1 - xfAmt * 0.42 : 1);
@@ -2604,7 +3261,9 @@ canvas.radar {
     }
     function sampleSpectrum() {
       if (ctx && N.an && audio && !audio.paused) {
-        if (!freqData) freqData = new Uint8Array(N.an.frequencyBinCount);
+        if (!freqData || freqData.length !== N.an.frequencyBinCount) {
+          freqData = new Uint8Array(N.an.frequencyBinCount);
+        }
         N.an.getByteFrequencyData(freqData);
       }
     }
@@ -3275,6 +3934,175 @@ canvas.radar {
         return false;
       }
     }
+    let preloadedIdx = -1;
+    let queuedShuffleNext = -1;
+    let xfadeTimer = 0;
+    let xfadeActive = false;
+    function resetDeckGainsImmediate() {
+      clearTimeout(xfadeTimer);
+      xfadeActive = false;
+      preloadedIdx = -1;
+      if (standbyAudio && !standbyAudio.paused) {
+        try {
+          standbyAudio.pause();
+        } catch (_e) {
+        }
+      }
+      if (ctx && N.gA && N.gB) {
+        const t = ctx.currentTime;
+        const gAct = activeDeck === "A" ? N.gA.gain : N.gB.gain;
+        const gStb = activeDeck === "A" ? N.gB.gain : N.gA.gain;
+        gAct.cancelScheduledValues(t);
+        gStb.cancelScheduledValues(t);
+        gAct.setValueAtTime(1, t);
+        gStb.setValueAtTime(0, t);
+      }
+    }
+    function peekNextAutoIndex() {
+      if (!PL.length) return -1;
+      if (repeat === 2) return cur;
+      if (shuffle && PL.length > 1) {
+        if (queuedShuffleNext >= 0 && queuedShuffleNext < PL.length && queuedShuffleNext !== cur) {
+          return queuedShuffleNext;
+        }
+        let r = cur;
+        while (r === cur) r = Math.floor(Math.random() * PL.length);
+        queuedShuffleNext = r;
+        return r;
+      }
+      const nx = cur + 1;
+      if (nx >= PL.length) {
+        return repeat === 1 ? 0 : -1;
+      }
+      return nx;
+    }
+    function setDockTitleFor(i) {
+      const t = PL[i];
+      if (!t) return;
+      const dTitle = $("#dTitle");
+      if (dTitle) {
+        dTitle.replaceChildren(
+          h("span", { class: "dt-name", text: t.name }),
+          ...t.artist ? [h("span", { class: "dt-sep", text: " \xB7 " }), h("span", { class: "dt-art", text: t.artist })] : []
+        );
+      }
+      if (t.id != null) {
+        savedLastTrackId = String(t.id);
+        try {
+          localStorage.setItem(LAST_TRACK_KEY, savedLastTrackId);
+        } catch (_e) {
+        }
+        saveSoon();
+      }
+    }
+    function maybePreloadStandby() {
+      if (!PL.length || cur < 0 || xfadeActive || !standbyAudio) return;
+      if (!S.play.gapless && !(S.play.xfade > 0)) return;
+      const dur = audio.duration;
+      if (!dur || !isFinite(dur) || dur < 4) return;
+      const rem = dur - audio.currentTime;
+      const lead = Math.max(12, (S.play.xfade || 0) + 4);
+      if (rem > lead) return;
+      const nx = peekNextAutoIndex();
+      if (nx < 0 || !PL[nx] || nx === cur) return;
+      if (preloadedIdx !== nx || standbyAudio.src !== PL[nx].url) {
+        preloadedIdx = nx;
+        standbyAudio.src = PL[nx].url;
+        standbyAudio.currentTime = 0;
+        try {
+          standbyAudio.load();
+        } catch (_e) {
+        }
+      }
+    }
+    async function triggerDeckHandoff(nx, fadeSec) {
+      if (!PL[nx] || !ctx || !N.gA || !N.gB || !standbyAudio) return false;
+      clearTimeout(xfadeTimer);
+      queuedShuffleNext = -1;
+      const outEl = audio;
+      const inEl = standbyAudio;
+      const outGain = activeDeck === "A" ? N.gA.gain : N.gB.gain;
+      const inGain = activeDeck === "A" ? N.gB.gain : N.gA.gain;
+      if (preloadedIdx !== nx || inEl.src !== PL[nx].url) {
+        inEl.src = PL[nx].url;
+      }
+      inEl.currentTime = 0;
+      const baseRate = clamp(S.play.rate || 1, 0.5, 1.5);
+      const effRate = S.play.hz432 ? baseRate * (432 / 440) : baseRate;
+      const keepP = S.play.hz432 ? false : !!S.play.keepPitch;
+      inEl.preservesPitch = keepP;
+      inEl.webkitPreservesPitch = keepP;
+      if (Math.abs(inEl.playbackRate - effRate) > 1e-4) inEl.playbackRate = effRate;
+      try {
+        if (ctx.state !== "running") await ctx.resume();
+        const t0 = ctx.currentTime;
+        const dur = clamp(fadeSec, 0.01, 12);
+        outGain.cancelScheduledValues(t0);
+        inGain.cancelScheduledValues(t0);
+        if (dur >= 0.15) {
+          const steps = 64;
+          const cOut = new Float32Array(steps);
+          const cIn = new Float32Array(steps);
+          for (let k = 0; k < steps; k++) {
+            const ph = k / (steps - 1) * Math.PI * 0.5;
+            cOut[k] = Math.cos(ph);
+            cIn[k] = Math.sin(ph);
+          }
+          outGain.setValueCurveAtTime(cOut, t0, dur);
+          inGain.setValueCurveAtTime(cIn, t0, dur);
+        } else {
+          outGain.setValueAtTime(1, t0);
+          inGain.setValueAtTime(0, t0);
+          outGain.linearRampToValueAtTime(0, t0 + dur);
+          inGain.linearRampToValueAtTime(1, t0 + dur);
+        }
+        activeDeck = activeDeck === "A" ? "B" : "A";
+        audio = inEl;
+        standbyAudio = outEl;
+        preloadedIdx = -1;
+        cur = nx;
+        xfadeActive = dur >= 0.15;
+        await inEl.play();
+        setDockTitleFor(nx);
+        renderList();
+        updateEngineSpecUi();
+        syncMediaSession(true);
+        xfadeTimer = setTimeout(() => {
+          xfadeActive = false;
+          try {
+            if (outEl !== audio) outEl.pause();
+          } catch (_e) {
+          }
+        }, Math.round(dur * 1e3) + 60);
+        return true;
+      } catch (_e) {
+        resetDeckGainsImmediate();
+        return false;
+      }
+    }
+    function paintJackStatus() {
+      if (!jackStatusEl) return;
+      const srTxt = ctx && ctx.sampleRate ? +(ctx.sampleRate / 1e3).toFixed(1) + " kHz" : "48 kHz";
+      const ditherOn = !!(FX_CONN.dither && ditherReady);
+      const parts = [];
+      if (NATIVE) {
+        if (jackHw.jackConnected) {
+          parts.push((jackHw.portType === "usb_dac_jack" ? "DAC USB-C / Jack conectado" : "Jack 3.5 mm conectado") + (jackHw.deviceName && !jackHw.deviceName.includes("Jack") ? " (" + jackHw.deviceName + ")" : ""));
+          parts.push("Reloj DAC " + srTxt);
+          parts.push((jackHw.bitDepth || 24) + "-bit" + (ditherOn ? " TPDF" : ""));
+        } else {
+          parts.push("En espera de Jack 3.5 mm \xB7 " + jackHw.deviceName);
+          parts.push("Reloj actual " + srTxt);
+          if (ditherOn) parts.push("24-bit TPDF");
+        }
+      } else {
+        parts.push(S.jack.hiRes ? "Salida Directa Hi-Res activa" : "Salida est\xE1ndar del sistema");
+        if (jackHw.deviceName && jackHw.deviceName !== "Salida del sistema / Jack") parts.push(jackHw.deviceName);
+        parts.push("Reloj DAC " + srTxt);
+        parts.push(ditherOn ? "24-bit TPDF activo" : "32-bit Float");
+      }
+      jackStatusEl.textContent = parts.join(" \xB7 ");
+    }
     function updateEngineSpecUi() {
       const specEl = $("#dSpec");
       if (!specEl) return;
@@ -3282,9 +4110,12 @@ canvas.radar {
       const t = PL[cur];
       if (t && t.fmt) parts.push(t.fmt);
       if (t && t.kbps && t.kbps > 0) parts.push(t.kbps + " kbps");
+      if (S.jack.hiRes && (jackHw.jackConnected || ctx && ctx.sampleRate >= 88200)) {
+        parts.push(jackHw.jackConnected ? "Jack Hi-Res" : "Hi-Res");
+      }
       if (ctx && ctx.sampleRate) parts.push(+(ctx.sampleRate / 1e3).toFixed(1) + " kHz DAC");
-      parts.push("32-bit Float");
-      parts.push(workletReady ? "Brickwall 2.5ms" : "Oversampling 4\xD7");
+      if (FX_CONN.dither && ditherReady) parts.push("24-bit TPDF");
+      parts.push(eq64Ready ? "64-bit EQ" : "32-bit Float");
       specEl.textContent = parts.join(" \xB7 ");
     }
     function addFiles(files) {
@@ -3322,8 +4153,8 @@ canvas.radar {
       if (NATIVE && window.AndroidBridge?.updatePlaybackState) {
         try {
           window.AndroidBridge.updatePlaybackState(
-            t.name || "Estudio EQ",
-            t.artist || "Estudio EQ",
+            t.name || "Estudio Master Hi-Res",
+            t.artist || "Estudio Master Hi-Res",
             playing,
             Math.floor((audio.currentTime || 0) * 1e3),
             Math.floor((audio.duration || t.duration || 0) * 1e3)
@@ -3335,12 +4166,12 @@ canvas.radar {
         try {
           if (force || !navigator.mediaSession.metadata || navigator.mediaSession.metadata.title !== t.name) {
             navigator.mediaSession.metadata = new MediaMetadata({
-              title: t.name || "Estudio EQ",
-              artist: t.artist || "Estudio EQ",
-              album: "Estudio EQ",
+              title: t.name || "Estudio Master Hi-Res",
+              artist: t.artist || "Estudio Master Hi-Res",
+              album: "Estudio Master Hi-Res",
               artwork: [
-                { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-                { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" }
+                { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },
+                { src: "icons/icon-512.png", sizes: "512x512", type: "image/png" }
               ]
             });
           }
@@ -3358,27 +4189,15 @@ canvas.radar {
     }
     function loadTrack(i, play) {
       if (!PL[i]) return;
+      resetDeckGainsImmediate();
+      queuedShuffleNext = -1;
       const sameUrl = cur === i && audio.src === PL[i].url;
       cur = i;
       if (!sameUrl) {
         audio.src = PL[i].url;
       }
-      const dTitle = $("#dTitle");
-      if (dTitle) {
-        dTitle.replaceChildren(
-          h("span", { class: "dt-name", text: PL[i].name }),
-          ...PL[i].artist ? [h("span", { class: "dt-sep", text: " \xB7 " }), h("span", { class: "dt-art", text: PL[i].artist })] : []
-        );
-      }
+      setDockTitleFor(i);
       updateEngineSpecUi();
-      if (PL[i].id != null) {
-        savedLastTrackId = String(PL[i].id);
-        try {
-          localStorage.setItem(LAST_TRACK_KEY, savedLastTrackId);
-        } catch (_e) {
-        }
-        saveSoon();
-      }
       renderList();
       if (play) playNow();
       else syncMediaSession(true);
@@ -3404,6 +4223,7 @@ canvas.radar {
     function pauseByUser() {
       userWantsPlaying = false;
       clearTimeout(resumeT);
+      resetDeckGainsImmediate();
       audio.pause();
       const ic = $("#playIcon");
       if (ic) ic.innerHTML = '<path d="M8 5v14l11-7z"/>';
@@ -3412,27 +4232,36 @@ canvas.radar {
     }
     function nextTrack(auto) {
       if (!PL.length) return;
+      if (auto) {
+        const nx = peekNextAutoIndex();
+        if (nx < 0) {
+          userWantsPlaying = false;
+          syncMediaSession(true);
+          return;
+        }
+        if (S.play.gapless && nx !== cur && preloadedIdx === nx) {
+          triggerDeckHandoff(nx, 0.012).then((ok) => {
+            if (!ok) loadTrack(nx, true);
+          });
+          return;
+        }
+        loadTrack(nx, true);
+        return;
+      }
       let i;
       if (shuffle && PL.length > 1) {
         do {
           i = Math.floor(Math.random() * PL.length);
         } while (i === cur);
       } else {
-        i = cur + 1;
-        if (i >= PL.length) {
-          if (auto && repeat !== 1) {
-            userWantsPlaying = false;
-            syncMediaSession(true);
-            return;
-          }
-          i = 0;
-        }
+        i = (cur + 1) % PL.length;
       }
       loadTrack(i, true);
     }
     function prevTrack() {
       if (!PL.length) return;
       if (audio.currentTime > 3) {
+        resetDeckGainsImmediate();
         audio.currentTime = 0;
         syncMediaSession(true);
         return;
@@ -3964,38 +4793,172 @@ canvas.radar {
           h(
             "div",
             { class: "chead" },
-            h("h2", { text: "App Nativa Android (.apk)" }),
-            h("span", { class: "apk-badge", text: "Lista para compilar" })
+            h("h2", { text: "App Independiente Android (.apk)" }),
+            h("span", { class: "apk-badge", text: "Master Hi-Res" })
           ),
           h("p", {
             class: "hint",
-            text: "Paquete nativo con lectura autom\xE1tica Hi-Res (FLAC, WAV, AIFF, OPUS, M4A, MP3), detecci\xF3n en vivo y reproducci\xF3n con pantalla apagada."
+            text: "Se instala como aplicaci\xF3n independiente (com.estudiomaster.hires) con icono de cristal trasl\xFAcido, sin actualizar ni borrar tu Estudio EQ anterior."
           }),
           h(
             "div",
             { class: "chips" },
             h("a", {
               class: "btn pri",
-              href: "/api/estudio-eq-android.zip",
-              download: "Estudio-EQ-Android-GitHub.zip",
+              href: "/api/estudio-master-hires-android.zip",
+              download: "Estudio-Master-Hi-Res-Android-GitHub.zip",
               text: "Descargar proyecto Android (.zip)"
             })
           ),
           h(
             "details",
             { class: "adv", style: "margin-top:8px" },
-            h("summary", { text: "Pasos para obtener tu Estudio-EQ.apk gratis sin instalar nada" }),
+            h("summary", { text: "Pasos para obtener tu Estudio-Master-Hi-Res.apk sin afectar tu otra app" }),
             h(
               "ol",
               { class: "apk-steps" },
-              h("li", { text: "Exporta este proyecto directo a GitHub desde el men\xFA superior (o descomprime el ZIP descargado y s\xFAbelo a un repositorio nuevo en github.com)." }),
-              h("li", { text: "GitHub Actions compilar\xE1 autom\xE1ticamente la app nativa de Android en ~3 minutos." }),
-              h("li", { text: "Abre la secci\xF3n Releases de tu repositorio en tu celular y descarga Estudio-EQ.apk directo para instalar." })
+              h("li", { text: "Crea un repositorio NUEVO en GitHub (ej. estudio-master-hires) y exporta este proyecto desde el men\xFA superior o sube el ZIP descargado." }),
+              h("li", { text: "GitHub Actions compilar\xE1 autom\xE1ticamente la nueva app independiente en ~3 minutos." }),
+              h("li", { text: "Entra a Releases en tu repositorio y descarga Estudio-Master-Hi-Res.apk: se instalar\xE1 aparte junto a tu otra app." })
             )
           )
         );
         p.append(apkCard);
       }
+      {
+        const jackHead = h("div", { class: "chead" }, h("h2", { text: "Puerto Jack 3.5 mm \xB7 Hi-Res" }));
+        const jackSw = h(
+          "button",
+          {
+            class: "sw",
+            role: "switch",
+            type: "button",
+            "aria-label": "Activar Modo Directo Hi-Res para puerto Jack 3.5 mm",
+            "aria-checked": String(!!S.jack.hiRes),
+            onclick: () => {
+              S.jack.hiRes = !S.jack.hiRes;
+              syncAll();
+              persistNow();
+              rebuildEngineSampleRate(true);
+            }
+          },
+          h("i")
+        );
+        jackHead.append(jackSw);
+        jackStatusEl = h("p", { class: "hint num", style: "color:var(--acc);margin-bottom:8px" });
+        const rateOpts = [
+          [0, "Auto M\xE1x DAC"],
+          [48e3, "48 kHz"],
+          [96e3, "96 kHz Hi-Res"],
+          [192e3, "192 kHz Ultra"]
+        ];
+        const rateRow = h("div", { class: "chips", style: "margin-bottom:8px" });
+        const rateBtns = rateOpts.map(
+          ([hz, lbl]) => h("button", {
+            class: "chip",
+            type: "button",
+            text: lbl,
+            "aria-pressed": String((S.jack.rate || 0) === hz),
+            onclick: () => {
+              if (!S.jack.hiRes) S.jack.hiRes = true;
+              S.jack.rate = hz;
+              syncAll();
+              persistNow();
+              rebuildEngineSampleRate(true);
+            }
+          })
+        );
+        rateRow.append(...rateBtns);
+        const ditherChip = h("button", {
+          class: "chip",
+          type: "button",
+          text: "Dithering Anal\xF3gico 24-bit TPDF",
+          "aria-pressed": String(!!S.jack.dither24),
+          onclick: () => {
+            S.jack.dither24 = !S.jack.dither24;
+            syncAll();
+            applyAll(true);
+            persistNow();
+            toast(
+              S.jack.dither24 ? "Dithering anal\xF3gico 24-bit TPDF activo en salida Jack" : "Dithering 24-bit desactivado (Bypass 0% carga)"
+            );
+          }
+        });
+        syncers.push(() => {
+          jackSw.setAttribute("aria-checked", String(!!S.jack.hiRes));
+          rateOpts.forEach(([hz], idx) => {
+            rateBtns[idx].setAttribute("aria-pressed", String((S.jack.rate || 0) === hz));
+          });
+          ditherChip.setAttribute("aria-pressed", String(!!S.jack.dither24));
+          paintJackStatus();
+        });
+        const jackCard = h(
+          "div",
+          { class: "card" },
+          jackHead,
+          jackStatusEl,
+          rateRow,
+          h("div", { class: "chips", style: "margin-bottom:6px" }, ditherChip),
+          h("p", {
+            class: "mini",
+            text: "Detecta la conexi\xF3n f\xEDsica al puerto Jack 3.5 mm o adaptador DAC USB-C, desbloquea el reloj de salida de 96 / 192 kHz sin compresi\xF3n de agudos y aplica dithering triangular de 24 bits para eliminar cualquier grano digital en pasajes suaves."
+          })
+        );
+        p.append(jackCard);
+      }
+      const playCard = card("play", "Transici\xF3n Gapless y Reproducci\xF3n");
+      const gaplessChip = h("button", {
+        class: "chip",
+        type: "button",
+        text: "Gapless (0 ms)",
+        "aria-pressed": String(!!S.play.gapless),
+        onclick: () => {
+          S.play.gapless = !S.play.gapless;
+          syncAll();
+          commit();
+          persistNow();
+          toast(S.play.gapless ? "Transici\xF3n sin pausa (Gapless) activa" : "Gapless desactivado");
+        }
+      });
+      const pitchChip = h("button", {
+        class: "chip",
+        type: "button",
+        text: "Conservar tono",
+        "aria-pressed": String(!!S.play.keepPitch),
+        onclick: () => {
+          S.play.keepPitch = !S.play.keepPitch;
+          syncAll();
+          commit();
+          persistNow();
+        }
+      });
+      const hz432Chip = h("button", {
+        class: "chip",
+        type: "button",
+        text: "Afinaci\xF3n 432 Hz",
+        "aria-pressed": String(!!S.play.hz432),
+        onclick: () => {
+          S.play.hz432 = !S.play.hz432;
+          syncAll();
+          commit();
+          persistNow();
+          toast(S.play.hz432 ? "Afinaci\xF3n org\xE1nica 432 Hz activa" : "Afinaci\xF3n original 440 Hz (1.0\xD7)");
+        }
+      });
+      syncers.push(() => {
+        gaplessChip.setAttribute("aria-pressed", String(!!S.play.gapless));
+        pitchChip.setAttribute("aria-pressed", String(!!S.play.keepPitch));
+        hz432Chip.setAttribute("aria-pressed", String(!!S.play.hz432));
+      });
+      playCard.body.append(
+        h("div", { class: "chips", style: "margin-bottom:6px" }, gaplessChip, pitchChip, hz432Chip),
+        row("play.xfade", "Fundido cruzado (Crossfade)", { min: 0, max: 12, step: 0.5, fine: 0.5, unit: "s" }),
+        row("play.rate", "Velocidad de reproducci\xF3n", { min: 0.5, max: 1.5, step: 0.01, fine: 0.01, unit: "\xD7" }),
+        h("p", {
+          class: "mini",
+          text: "Doble lector en memoria: enlaza \xE1lbumes sin silencio (0 s) o mezcla suavemente en curva igual-potencia. En 1.0\xD7 y sin 432 Hz permanece 100% bit-perfect."
+        })
+      );
       const io = card("master", "Mastering \xB7 Entrada y salida");
       const autoHeadBtn = h("button", {
         class: "chip",
@@ -4019,18 +4982,19 @@ canvas.radar {
         h("p", { class: "mini", text: "Limitador maestro Brickwall con anticipaci\xF3n de 2.5 ms y filtro subs\xF3nico DC a 12 Hz para m\xE1xima fidelidad sin distorsi\xF3n." })
       );
       p.append(
+        playCard.c,
         io.c,
         h(
           "div",
           { class: "card" },
-          h("div", { class: "chead" }, h("h2", { text: "Motor Mastering Ultra" })),
+          h("div", { class: "chead" }, h("h2", { text: "Motor Mastering Ultra 64-bit" })),
           h("p", {
             class: "hint",
-            text: "Procesamiento interno en 32-bit Float a la tasa nativa de tu DAC (48 / 96 / 192 kHz), sobremuestreo 4\xD7 anti-aliasing y decodificaci\xF3n lossless (FLAC, WAV, AIFF, ALAC, OPUS)."
+            text: "Cascada EQ en doble precisi\xF3n IEEE-754 (64-bit Float64) con Bypass de Carga Cero en bandas en 0 dB, sobremuestreo 4\xD7 anti-aliasing y decodificaci\xF3n lossless (FLAC, WAV, AIFF, ALAC, OPUS)."
           }),
           h("p", {
             class: "hint",
-            text: "Cada secci\xF3n tiene ahora su propio espacio limpio sin superponer el reproductor encima de tus bandas o efectos."
+            text: "Cada secci\xF3n tiene su propio espacio limpio sin superponer el reproductor encima de tus bandas o efectos."
           })
         )
       );
@@ -4087,6 +5051,8 @@ canvas.radar {
       });
     }
     let reduc = null;
+    let mbReduc = null;
+    let deReduc = null;
     let radar = null;
     {
       const p = mkPane("fx");
@@ -4098,6 +5064,30 @@ canvas.radar {
         row("fx.tone.trebF", "Frecuencia de agudos", { min: 2e3, max: 16e3, step: 10, fine: 10, unit: "Hz", log: true }),
         row("fx.tone.lc", "Corte de graves (pasa altos)", { min: 20, max: 500, step: 1, fine: 1, unit: "Hz", log: true }),
         row("fx.tone.hc", "Corte de agudos (pasa bajos)", { min: 2e3, max: 2e4, step: 10, fine: 10, unit: "Hz", log: true })
+      );
+      const mbcomp = card("mbcomp", FXN.mbcomp, { on: true });
+      mbReduc = h("span", { class: "mini num", text: "Graves 0.0 \xB7 Medios 0.0 \xB7 Agudos 0.0 dB" });
+      mbcomp.body.append(
+        mbReduc,
+        row("fx.mbcomp.lowX", "Cruce graves / medios", { min: 60, max: 400, step: 1, fine: 1, unit: "Hz", log: true }),
+        row("fx.mbcomp.highX", "Cruce medios / agudos", { min: 1200, max: 8e3, step: 10, fine: 10, unit: "Hz", log: true }),
+        row("fx.mbcomp.lowTh", "Umbral graves", { min: -60, max: 0, step: 0.5, fine: 0.1, unit: "dB" }),
+        row("fx.mbcomp.midTh", "Umbral medios", { min: -60, max: 0, step: 0.5, fine: 0.1, unit: "dB" }),
+        row("fx.mbcomp.highTh", "Umbral agudos", { min: -60, max: 0, step: 0.5, fine: 0.1, unit: "dB" }),
+        row("fx.mbcomp.ratio", "Proporci\xF3n multibanda", { min: 1, max: 12, step: 0.1, fine: 0.1, unit: ": 1" }),
+        row("fx.mbcomp.lowG", "Ganancia banda graves", { min: -12, max: 12, step: 0.1, fine: 0.1, unit: "dB" }),
+        row("fx.mbcomp.midG", "Ganancia banda medios", { min: -12, max: 12, step: 0.1, fine: 0.1, unit: "dB" }),
+        row("fx.mbcomp.highG", "Ganancia banda agudos", { min: -12, max: 12, step: 0.1, fine: 0.1, unit: "dB" }),
+        h("p", { class: "mini", text: "Controla los bombos y subgraves de forma independiente sin apagar la voz ni los platillos." })
+      );
+      const deess = card("deess", FXN.deess, { on: true });
+      deReduc = h("span", { class: "mini num", text: "Atenuaci\xF3n sibilante 0.0 dB" });
+      deess.body.append(
+        deReduc,
+        row("fx.deess.freq", "Frecuencia vocal (S / Sh)", { min: 3500, max: 11e3, step: 50, fine: 10, unit: "Hz", log: true }),
+        row("fx.deess.th", "Sensibilidad (umbral)", { min: -55, max: 0, step: 0.5, fine: 0.1, unit: "dB" }),
+        row("fx.deess.amt", "Suavizado din\xE1mico", { min: 1, max: 16, step: 0.2, fine: 0.1, unit: ": 1" }),
+        h("p", { class: "mini", text: "Domina \xFAnicamente los chispazos de las \u201CS\u201D fuertes conservando todo el brillo cuando no hay sibilancia." })
       );
       const comp = card("comp", FXN.comp, { on: true });
       reduc = h("span", { class: "mini num", text: "Reducci\xF3n 0.0 dB" });
@@ -4140,6 +5130,19 @@ canvas.radar {
         row("fx.sat.drive", "Empuje arm\xF3nico", { min: 0, max: 100, step: 0.1, fine: 0.1, unit: "%" }),
         row("fx.sat.mix", "Mezcla paralela", { min: 0, max: 100, step: 0.1, fine: 0.1, unit: "%" }),
         h("p", { class: "mini", text: "Sobremuestreo 4\xD7 y curva de 32,768 puntos sin aliasing digital." })
+      );
+      const airexc = card("airexc", FXN.airexc, { on: true });
+      airexc.body.append(
+        row("fx.airexc.freq", "Banda de aire superior", { min: 5e3, max: 15e3, step: 100, fine: 20, unit: "Hz", log: true }),
+        row("fx.airexc.drive", "S\xEDntesis arm\xF3nica 4\xD7", { min: 0, max: 100, step: 0.5, fine: 0.1, unit: "%" }),
+        row("fx.airexc.mix", "Brillo sedoso (Mezcla)", { min: 0, max: 100, step: 0.5, fine: 0.1, unit: "%" }),
+        h("p", { class: "mini", text: "Reconstruye arm\xF3nicos cristalinos en 4\xD7 oversampling sin levantar el soplido de fondo como un EQ normal." })
+      );
+      const bmono = card("bmono", FXN.bmono, { on: true });
+      bmono.body.append(
+        row("fx.bmono.freq", "Corte subgrave el\xEDptico", { min: 35, max: 220, step: 1, fine: 1, unit: "Hz" }),
+        row("fx.bmono.mono", "Centrado mono en subgraves", { min: 0, max: 100, step: 1, fine: 1, unit: "%" }),
+        h("p", { class: "mini", text: "Alinea la fase por debajo de la frecuencia elegida para que los dos aud\xEDfonos o bocinas empujen al un\xEDsono con el doble de firmeza." })
       );
       const xfeed = card("xfeed", FXN.xfeed, { on: true });
       xfeed.body.append(
@@ -4185,7 +5188,7 @@ canvas.radar {
         row("fx.sp.rot", "Giro autom\xE1tico (8D)", { min: -60, max: 60, step: 0.1, fine: 0.1, unit: "rpm" }),
         h("p", { class: "mini", text: "Motor posicional binaural HRTF; ideal con aud\xEDfonos." })
       );
-      p.append(tone.c, comp.c, sat.c, xfeed.c, wid.c, rev.c, dly.c, sp.c);
+      p.append(tone.c, mbcomp.c, deess.c, comp.c, sat.c, airexc.c, bmono.c, xfeed.c, wid.c, rev.c, dly.c, sp.c);
     }
     const VIBK = ["sub", "glass", "harm", "trem", "vibr", "hap"];
     function applyKeys(keys, data) {
@@ -4333,7 +5336,7 @@ canvas.radar {
       } else if (shakeAmt) clr();
     }
     {
-      let gRender2 = function() {
+      let gRender = function() {
         gChips.replaceChildren(
           ...GEN.map(
             (g2, i) => h("button", {
@@ -4343,7 +5346,7 @@ canvas.radar {
               "aria-pressed": String(i === gSel),
               onclick: () => {
                 gSel = i;
-                gRender2();
+                gRender();
               }
             })
           )
@@ -4363,7 +5366,6 @@ canvas.radar {
           )
         );
       };
-      var gRender = gRender2;
       const p = mkPane("gen");
       const ip = (pts, k) => Array.from({ length: 30 }, (_, i) => {
         let v = pts[pts.length - 1][1];
@@ -4473,7 +5475,7 @@ canvas.radar {
           })
         )
       );
-      gRender2();
+      gRender();
     }
     function drawRadar() {
       if (!radar || document.hidden) return;
@@ -4777,25 +5779,6 @@ canvas.radar {
         }, 3e3);
       });
     }
-    build();
-    updateEngineSpecUi();
-    $("#bPlay").addEventListener("click", () => {
-      if (!PL.length) {
-        showTab("music");
-        if (NATIVE && !hasPerm) {
-          try {
-            window.AndroidBridge?.requestMusicPermission?.();
-          } catch (_e) {
-          }
-        } else toast(NATIVE ? "No hay canciones en el tel\xE9fono" : "A\xF1ade m\xFAsica primero");
-        return;
-      }
-      if (cur < 0) loadTrack(0, true);
-      else if (audio.paused || !userWantsPlaying) playNow();
-      else pauseByUser();
-    });
-    $("#bNext").addEventListener("click", () => nextTrack(false));
-    $("#bPrev").addEventListener("click", prevTrack);
     const seek = $("#seek");
     const updSeekPct = () => {
       const mx = +seek.max || 1;
@@ -4818,78 +5801,264 @@ canvas.radar {
       updSeekPct();
       if (dTimeEl) dTimeEl.textContent = mmss(audio.currentTime) + " / " + mmss(audio.duration || 0);
     });
-    audio.addEventListener("play", () => {
-      userWantsPlaying = true;
-      clearTimeout(resumeT);
-      const ic = $("#playIcon");
-      if (ic) ic.innerHTML = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
-      $("#bPlay").setAttribute("aria-label", "Pausar");
-      updateEngineSpecUi();
-      syncMediaSession(true);
-    });
-    audio.addEventListener("pause", () => {
-      if (userWantsPlaying && !audio.ended) {
-        if (inPhoneCall()) {
+    function checkAutoCrossfade(el) {
+      if (el !== audio || rebuildingCtx || !userWantsPlaying || el.paused || seeking || xfadeActive) return;
+      maybePreloadStandby();
+      const xf = S.play.xfade || 0;
+      if (xf <= 0 || repeat === 2) return;
+      const dur = el.duration;
+      if (!dur || !isFinite(dur) || dur < Math.max(5, xf * 1.6)) return;
+      const rem = dur - el.currentTime;
+      if (rem <= xf && rem > 0.08) {
+        const nx = peekNextAutoIndex();
+        if (nx >= 0 && nx !== cur) {
+          triggerDeckHandoff(nx, xf);
+        }
+      }
+    }
+    function bindDeckEvents(el) {
+      el.addEventListener("play", () => {
+        if (el !== audio || rebuildingCtx) return;
+        userWantsPlaying = true;
+        clearTimeout(resumeT);
+        const ic = $("#playIcon");
+        if (ic) ic.innerHTML = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+        $("#bPlay").setAttribute("aria-label", "Pausar");
+        updateEngineSpecUi();
+        syncMediaSession(true);
+      });
+      el.addEventListener("pause", () => {
+        if (el !== audio || rebuildingCtx) return;
+        if (userWantsPlaying && !el.ended) {
+          if (inPhoneCall()) {
+            userWantsPlaying = false;
+          } else {
+            clearTimeout(resumeT);
+            resumeT = setTimeout(() => {
+              if (el !== audio || rebuildingCtx || !userWantsPlaying || !el.paused || el.ended || inPhoneCall()) return;
+              if (ctx && ctx.state !== "running") ctx.resume().catch(() => {
+              });
+              el.play().catch(() => {
+              });
+            }, 55);
+            return;
+          }
+        }
+        const ic = $("#playIcon");
+        if (ic) ic.innerHTML = '<path d="M8 5v14l11-7z"/>';
+        $("#bPlay").setAttribute("aria-label", "Reproducir");
+        syncMediaSession(true);
+      });
+      el.addEventListener("loadedmetadata", () => {
+        if (el !== audio) return;
+        const dur = el.duration || 0;
+        seek.max = String(dur || 1);
+        if (PL[cur] && dur > 0) {
+          PL[cur].duration = Math.round(dur);
+          if (PL[cur].rawFile && !PL[cur].kbps) {
+            PL[cur].kbps = Math.round(PL[cur].rawFile.size * 8 / (dur * 1e3));
+          }
+          renderList();
+        }
+        updateEngineSpecUi();
+        updSeekPct();
+        syncMediaSession(true);
+      });
+      el.addEventListener("timeupdate", () => {
+        if (el !== audio) return;
+        if (!seeking) {
+          seek.value = String(el.currentTime);
+          updSeekPct();
+        }
+        const sec = el.currentTime | 0;
+        if (sec !== lastTimeSec) {
+          lastTimeSec = sec;
+          if (dTimeEl) dTimeEl.textContent = mmss(sec) + " / " + mmss(el.duration || 0);
+        }
+        checkAutoCrossfade(el);
+      });
+      el.addEventListener("ended", () => {
+        if (el !== audio || rebuildingCtx) return;
+        if (repeat === 2) {
+          el.currentTime = 0;
+          playNow();
+        } else nextTrack(true);
+      });
+      el.addEventListener("error", async () => {
+        if (el !== audio || rebuildingCtx) return;
+        if (el.src) {
+          const t = PL[cur];
+          if (t && t.rawFile && !t.decodedFallback) {
+            const ok = await tryDecodeFallback(t);
+            if (ok) return;
+          }
           userWantsPlaying = false;
-        } else {
-          clearTimeout(resumeT);
-          resumeT = setTimeout(() => {
-            if (!userWantsPlaying || !audio.paused || audio.ended || inPhoneCall()) return;
-            if (ctx && ctx.state !== "running") ctx.resume().catch(() => {
-            });
-            audio.play().catch(() => {
-            });
-          }, 55);
+          toast("Formato no compatible con este dispositivo");
+        }
+      });
+    }
+    function rebuildEngineSampleRate(announce = false) {
+      const desired = computeDesiredSampleRate();
+      if (ctx) {
+        const effectiveTarget = desired || jackHw.nativeRate || 48e3;
+        if (desired === lastTargetRate && Math.abs(ctx.sampleRate - effectiveTarget) < 100) {
+          applyAll(true);
+          updateEngineSpecUi();
+          paintJackStatus();
           return;
         }
       }
-      const ic = $("#playIcon");
-      if (ic) ic.innerHTML = '<path d="M8 5v14l11-7z"/>';
-      $("#bPlay").setAttribute("aria-label", "Reproducir");
-      syncMediaSession(true);
-    });
-    audio.addEventListener("loadedmetadata", () => {
-      const dur = audio.duration || 0;
-      seek.max = String(dur || 1);
-      if (PL[cur] && dur > 0) {
-        PL[cur].duration = Math.round(dur);
-        if (PL[cur].rawFile && !PL[cur].kbps) {
-          PL[cur].kbps = Math.round(PL[cur].rawFile.size * 8 / (dur * 1e3));
-        }
-        renderList();
+      const oldCtx = ctx;
+      const oldA = deckA;
+      const oldB = deckB;
+      const curSrc = audio ? audio.src : "";
+      const curPos = audio ? audio.currentTime || 0 : 0;
+      const shouldResume = !!(userWantsPlaying && curSrc);
+      rebuildingCtx = true;
+      clearTimeout(resumeT);
+      clearTimeout(xfadeTimer);
+      clearTimeout(irT);
+      xfadeActive = false;
+      preloadedIdx = -1;
+      try {
+        N.tLfo?.stop?.();
+      } catch (_e) {
       }
+      try {
+        N.vLfo?.stop?.();
+      } catch (_e) {
+      }
+      for (const k in P_CACHE) delete P_CACHE[k];
+      Object.keys(FX_CONN).forEach((k) => {
+        FX_CONN[k] = false;
+      });
+      for (const k in N) delete N[k];
+      workletReady = false;
+      eq64Ready = false;
+      ditherReady = false;
+      irKey = "";
+      satSig = "";
+      airDriveSig = -1;
+      harmDrive = -1;
+      ceilSig = -999;
+      eq64Sig = "";
+      lastPanX = NaN;
+      lastPanY = NaN;
+      lastPanZ = NaN;
+      freqData = null;
+      vizDirty = true;
+      build(desired, bindDeckEvents);
+      try {
+        if (oldA) {
+          oldA.pause();
+          oldA.removeAttribute("src");
+          oldA.load();
+        }
+        if (oldB) {
+          oldB.pause();
+          oldB.removeAttribute("src");
+          oldB.load();
+        }
+      } catch (_e) {
+      }
+      if (oldCtx) {
+        oldCtx.close().catch(() => {
+        });
+      }
+      applyAll(true);
+      if (curSrc && audio) {
+        audio.src = curSrc;
+        const restorePos = () => {
+          if (curPos > 0) {
+            try {
+              audio.currentTime = curPos;
+            } catch (_e) {
+            }
+          }
+        };
+        if (audio.readyState >= 1) restorePos();
+        else audio.addEventListener("loadedmetadata", restorePos, { once: true });
+      }
+      rebuildingCtx = false;
       updateEngineSpecUi();
-      updSeekPct();
-      syncMediaSession(true);
-    });
-    audio.addEventListener("timeupdate", () => {
-      if (!seeking) {
-        seek.value = String(audio.currentTime);
-        updSeekPct();
-      }
-      const sec = audio.currentTime | 0;
-      if (sec !== lastTimeSec) {
-        lastTimeSec = sec;
-        if (dTimeEl) dTimeEl.textContent = mmss(sec) + " / " + mmss(audio.duration || 0);
-      }
-    });
-    audio.addEventListener("ended", () => {
-      if (repeat === 2) {
-        audio.currentTime = 0;
+      paintJackStatus();
+      if (shouldResume && audio) {
         playNow();
-      } else nextTrack(true);
-    });
-    audio.addEventListener("error", async () => {
-      if (audio.src) {
-        const t = PL[cur];
-        if (t && t.rawFile && !t.decodedFallback) {
-          const ok = await tryDecodeFallback(t);
-          if (ok) return;
-        }
-        userWantsPlaying = false;
-        toast("Formato no compatible con este dispositivo");
       }
+      if (announce && ctx) {
+        const actualKhz = +(ctx.sampleRate / 1e3).toFixed(1);
+        if (!S.jack.hiRes) {
+          toast("Modo Hi-Res Jack desactivado \xB7 Reloj " + actualKhz + " kHz");
+        } else if (desired > 0 && ctx.sampleRate + 500 < desired) {
+          toast("M\xE1ximo admitido por este DAC: " + actualKhz + " kHz");
+        } else {
+          toast("Salida Hi-Res activa \xB7 Reloj DAC " + actualKhz + " kHz");
+        }
+      }
+    }
+    window.__onNativeJack = (jackJson, reason) => {
+      const prevConnected = jackHw.jackConnected;
+      const parsed = parseNativeJackJson(jackJson);
+      if (!parsed) return;
+      jackHw = parsed;
+      if (S.jack.hiRes && S.jack.rate === 0 && prevConnected !== parsed.jackConnected) {
+        rebuildEngineSampleRate(false);
+        if (parsed.jackConnected && ctx && reason === "plug") {
+          toast(
+            parsed.deviceName + " detectado \xB7 Salida Hi-Res " + +(ctx.sampleRate / 1e3).toFixed(1) + " kHz / " + parsed.bitDepth + "-bit"
+          );
+        }
+      } else {
+        applyAll(true);
+        updateEngineSpecUi();
+        paintJackStatus();
+      }
+    };
+    if (!NATIVE && typeof navigator !== "undefined" && navigator.mediaDevices) {
+      const probeWebAudioOutputs = async () => {
+        try {
+          if (!navigator.mediaDevices.enumerateDevices) return;
+          const devs = await navigator.mediaDevices.enumerateDevices();
+          const outs = devs.filter((d) => d.kind === "audiooutput");
+          const wired = outs.find((d) => /headphone|headset|wired|jack|line|usb|external|audifono|auricular/i.test(d.label || ""));
+          if (wired && wired.label) {
+            jackHw.jackConnected = true;
+            jackHw.deviceName = wired.label;
+          } else {
+            jackHw.deviceName = "Salida del sistema / Jack";
+          }
+          updateEngineSpecUi();
+          paintJackStatus();
+        } catch (_e) {
+        }
+      };
+      probeWebAudioOutputs();
+      try {
+        navigator.mediaDevices.addEventListener("devicechange", probeWebAudioOutputs);
+      } catch (_e) {
+      }
+    }
+    refreshNativeJackSync();
+    build(computeDesiredSampleRate(), bindDeckEvents);
+    updateEngineSpecUi();
+    paintJackStatus();
+    $("#bPlay").addEventListener("click", () => {
+      if (!PL.length) {
+        showTab("music");
+        if (NATIVE && !hasPerm) {
+          try {
+            window.AndroidBridge?.requestMusicPermission?.();
+          } catch (_e) {
+          }
+        } else toast(NATIVE ? "No hay canciones en el tel\xE9fono" : "A\xF1ade m\xFAsica primero");
+        return;
+      }
+      if (cur < 0) loadTrack(0, true);
+      else if (audio.paused || !userWantsPlaying) playNow();
+      else pauseByUser();
     });
+    $("#bNext").addEventListener("click", () => nextTrack(false));
+    $("#bPrev").addEventListener("click", prevTrack);
     document.addEventListener(
       "pointerdown",
       () => {
@@ -4911,6 +6080,7 @@ canvas.radar {
       if (!audio || audio.paused) return;
       if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {
       });
+      checkAutoCrossfade(audio);
       if (document.hidden) {
         placePan(dt);
         if (S.fx.hap.on) {
@@ -4940,6 +6110,11 @@ canvas.radar {
       } catch (_e) {
       }
     }
+    const readCompDb = (node) => {
+      if (!node) return 0;
+      const r = node.reduction;
+      return Math.abs(typeof r === "number" ? r : r && r.value || 0);
+    };
     let last = performance.now();
     let lastCompUi = 0;
     function loop(now) {
@@ -4953,17 +6128,23 @@ canvas.radar {
         lastCompUi = now;
         if (S.fx.sp.on) drawRadar();
         if (ctx && reduc && S.fx.comp.on) {
-          const r = N.comp.reduction;
-          reduc.textContent = "Reducci\xF3n " + Math.abs(typeof r === "number" ? r : r && r.value || 0).toFixed(1) + " dB";
+          reduc.textContent = "Reducci\xF3n " + readCompDb(N.comp).toFixed(1) + " dB";
+        }
+        if (ctx && mbReduc && S.fx.mbcomp.on) {
+          mbReduc.textContent = "Graves " + readCompDb(N.mbLowC).toFixed(1) + " \xB7 Medios " + readCompDb(N.mbMidC).toFixed(1) + " \xB7 Agudos " + readCompDb(N.mbHighC).toFixed(1) + " dB";
+        }
+        if (ctx && deReduc && S.fx.deess.on) {
+          deReduc.textContent = "Atenuaci\xF3n sibilante " + readCompDb(N.deComp).toFixed(1) + " dB";
         }
       }
     }
     requestAnimationFrame(loop);
   }
-  const __el = document.querySelector(".studio-shell");
+
+  // <stdin>
+  var __el = document.querySelector(".studio-shell");
   if (__el) bootEstudioEQ(__el);
 })();
-
 </script>
 </body>
 </html>

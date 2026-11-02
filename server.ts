@@ -117,7 +117,7 @@ async function startServer() {
     next();
   });
 
-  app.get('/api/estudio-eq-android.zip', (_req, res) => {
+  const sendAndroidZip = (_req: express.Request, res: express.Response) => {
     try {
       const entries: ZipEntry[] = [];
       collectDirEntries(path.join(__dirname, '.github'), '.github', entries);
@@ -126,13 +126,16 @@ async function startServer() {
 
       const zipBuf = buildZipBuffer(entries);
       res.setHeader('Content-Type', 'application/zip');
-      res.setHeader('Content-Disposition', 'attachment; filename="Estudio-EQ-Android-GitHub.zip"');
+      res.setHeader('Content-Disposition', 'attachment; filename="Estudio-Master-Hi-Res-Android-GitHub.zip"');
       res.setHeader('Content-Length', String(zipBuf.length));
       res.send(zipBuf);
-    } catch (err) {
+    } catch (_err) {
       res.status(500).json({ error: 'No se pudo empaquetar el proyecto Android.' });
     }
-  });
+  };
+
+  app.get('/api/estudio-master-hires-android.zip', sendAndroidZip);
+  app.get('/api/estudio-eq-android.zip', sendAndroidZip);
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

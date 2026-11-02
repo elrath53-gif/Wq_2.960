@@ -13,8 +13,16 @@ export default function App() {
   return (
     <div ref={shellRef} className="studio-shell">
       <header className="top">
-        <h1>
-          Estudio <span>EQ</span>
+        <h1 className="brand-title">
+          <img
+            src="icons/icon-192.png"
+            alt=""
+            aria-hidden="true"
+            className="brand-ico"
+          />
+          <span className="brand-txt">
+            Estudio <span>Master Hi-Res</span>
+          </span>
         </h1>
         <button
           className="sw"

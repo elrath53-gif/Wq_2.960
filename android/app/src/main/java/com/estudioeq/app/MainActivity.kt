@@ -7,6 +7,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.graphics.Color
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioFormat
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
@@ -32,6 +35,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.util.concurrent.Executors
@@ -49,8 +53,19 @@ class MainActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val ioExecutor = Executors.newSingleThreadExecutor()
     private var mediaObserverRegistered = false
+    private var audioCallbackRegistered = false
     private var pageLoaded = false
     private var lastTracksJson: String = ""
+
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
+            pushJackState("plug")
+        }
+
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
+            pushJackState("unplug")
+        }
+    }
 
     private val scanDebounce = Runnable {
         scanAndPush("observer")
@@ -129,7 +144,7 @@ class MainActivity : AppCompatActivity() {
                     request: WebResourceRequest?
                 ): WebResourceResponse? {
                     val url = request?.url ?: return null
-                    if (url.scheme == "https" && url.host == "estudioeq.local") {
+                    if (url.scheme == "https" && url.host == "estudiomaster.local") {
                         val path = url.path ?: "/"
                         if (path.startsWith("/media/")) {
                             val id = path.removePrefix("/media/").toLongOrNull() ?: return null
@@ -149,6 +164,7 @@ class MainActivity : AppCompatActivity() {
                     pageLoaded = true
                     engineInitialized = true
                     webView.resumeTimers()
+                    pushJackState("init")
                     if (hasAudioPermission()) {
                         ensureMediaObserver()
                         scanAndPush("init")
@@ -162,6 +178,7 @@ class MainActivity : AppCompatActivity() {
 
         container.addView(webView)
         webView.resumeTimers()
+        ensureAudioDeviceCallback()
 
         PlaybackService.commandHandler = { cmd, arg ->
             mainHandler.post {
@@ -177,7 +194,7 @@ class MainActivity : AppCompatActivity() {
         })
 
         if (!engineInitialized) {
-            webView.loadUrl("https://estudioeq.local/index.html")
+            webView.loadUrl("https://estudiomaster.local/index.html")
         } else if (hasAudioPermission()) {
             ensureMediaObserver()
             scanAndPush("observer")
@@ -198,9 +215,13 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         webView.resumeTimers()
-        if (pageLoaded && hasAudioPermission()) {
-            ensureMediaObserver()
-            scanAndPush("observer")
+        ensureAudioDeviceCallback()
+        if (pageLoaded) {
+            pushJackState("resume")
+            if (hasAudioPermission()) {
+                ensureMediaObserver()
+                scanAndPush("observer")
+            }
         }
     }
 
@@ -271,6 +292,139 @@ class MainActivity : AppCompatActivity() {
             )
             mediaObserverRegistered = true
         } catch (_: Exception) {
+        }
+    }
+
+    private fun ensureAudioDeviceCallback() {
+        if (audioCallbackRegistered) return
+        try {
+            val am = applicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+            am.registerAudioDeviceCallback(audioDeviceCallback, mainHandler)
+            audioCallbackRegistered = true
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun inspectJackHardwareJson(): String {
+        val obj = JSONObject()
+        try {
+            val am = applicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            val nativeRate = am?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull() ?: 48000
+            val framesPerBuf = am?.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toIntOrNull() ?: 256
+            val outputs = am?.getDevices(AudioManager.GET_DEVICES_OUTPUTS) ?: emptyArray()
+
+            var wiredDev: AudioDeviceInfo? = null
+            var wiredPriority = 0
+            var activeFallback = "speaker"
+
+            for (dev in outputs) {
+                when (dev.type) {
+                    AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                    AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                    AudioDeviceInfo.TYPE_LINE_ANALOG,
+                    AudioDeviceInfo.TYPE_AUX_LINE -> {
+                        if (wiredPriority < 3) {
+                            wiredDev = dev
+                            wiredPriority = 3
+                        }
+                    }
+                    AudioDeviceInfo.TYPE_USB_HEADSET,
+                    AudioDeviceInfo.TYPE_USB_DEVICE,
+                    AudioDeviceInfo.TYPE_USB_ACCESSORY,
+                    AudioDeviceInfo.TYPE_LINE_DIGITAL -> {
+                        if (wiredPriority < 2) {
+                            wiredDev = dev
+                            wiredPriority = 2
+                        }
+                    }
+                    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                    AudioDeviceInfo.TYPE_BLE_HEADSET,
+                    AudioDeviceInfo.TYPE_BLE_SPEAKER -> {
+                        activeFallback = "bluetooth"
+                    }
+                }
+            }
+
+            if (wiredDev != null) {
+                val isAnalogJack = wiredPriority == 3
+                val rawRates = wiredDev.sampleRates
+                val arbitraryRates = rawRates == null || rawRates.isEmpty()
+                val cleanRates = if (!arbitraryRates) {
+                    rawRates.filter { it in 44100..384000 }.distinct().sorted()
+                } else {
+                    listOf(48000, 96000, 192000)
+                }
+                val maxRate = cleanRates.maxOrNull() ?: 96000
+
+                val rawEncs = wiredDev.encodings ?: IntArray(0)
+                var maxBits = if (rawEncs.isEmpty()) 24 else 16
+                var floatPcm = rawEncs.isEmpty()
+                for (enc in rawEncs) {
+                    if (enc == AudioFormat.ENCODING_PCM_FLOAT) {
+                        maxBits = 32
+                        floatPcm = true
+                    } else if (enc == 22 && maxBits < 32) { // ENCODING_PCM_32BIT
+                        maxBits = 32
+                    } else if (enc == 21 && maxBits < 24) { // ENCODING_PCM_24BIT_PACKED
+                        maxBits = 24
+                    }
+                }
+
+                val prodName = wiredDev.productName?.toString()?.trim().orEmpty()
+                val label = if (prodName.isNotEmpty() && !prodName.equals(Build.MODEL, ignoreCase = true)) {
+                    prodName
+                } else if (isAnalogJack) {
+                    "Puerto Jack 3.5 mm"
+                } else {
+                    "DAC USB-C / Jack"
+                }
+
+                val ratesArr = JSONArray()
+                cleanRates.forEach { ratesArr.put(it) }
+
+                obj.put("jackConnected", true)
+                obj.put("portType", if (isAnalogJack) "jack_35mm" else "usb_dac_jack")
+                obj.put("deviceName", label)
+                obj.put("nativeRate", nativeRate)
+                obj.put("framesPerBuffer", framesPerBuf)
+                obj.put("arbitraryRates", arbitraryRates)
+                obj.put("maxSampleRate", maxRate)
+                obj.put("supportedRates", ratesArr)
+                obj.put("bitDepth", maxBits)
+                obj.put("floatPcm", floatPcm)
+            } else {
+                val ratesArr = JSONArray().apply { put(nativeRate) }
+                obj.put("jackConnected", false)
+                obj.put("portType", activeFallback)
+                obj.put("deviceName", if (activeFallback == "bluetooth") "Audio Bluetooth" else "Altavoz del teléfono")
+                obj.put("nativeRate", nativeRate)
+                obj.put("framesPerBuffer", framesPerBuf)
+                obj.put("arbitraryRates", false)
+                obj.put("maxSampleRate", nativeRate)
+                obj.put("supportedRates", ratesArr)
+                obj.put("bitDepth", 24)
+                obj.put("floatPcm", true)
+            }
+        } catch (_: Exception) {
+            obj.put("jackConnected", false)
+            obj.put("portType", "speaker")
+            obj.put("nativeRate", 48000)
+            obj.put("maxSampleRate", 48000)
+            obj.put("bitDepth", 24)
+        }
+        return obj.toString()
+    }
+
+    private fun pushJackState(reason: String) {
+        mainHandler.post {
+            if (!pageLoaded) return@post
+            val json = inspectJackHardwareJson()
+            val quotedJson = JSONObject.quote(json)
+            val quotedReason = JSONObject.quote(reason)
+            webView.evaluateJavascript(
+                "window.__onNativeJack && window.__onNativeJack($quotedJson, $quotedReason);",
+                null
+            )
         }
     }
 
@@ -416,6 +570,38 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun getJackHiResInfo(): String {
+            return inspectJackHardwareJson()
+        }
+
+        @JavascriptInterface
+        fun configureJackHiRes(enable: Boolean, preferredRate: Int): String {
+            try {
+                val am = applicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                if (am != null) {
+                    val m = am.mode
+                    if (m != AudioManager.MODE_IN_CALL && m != AudioManager.MODE_IN_COMMUNICATION && m != AudioManager.MODE_RINGTONE) {
+                        am.mode = AudioManager.MODE_NORMAL
+                    }
+                    // Sugerencia opcional al HAL de fabricantes con DAC Hi-Fi dedicado (Aqstic / Sabre / UHD)
+                    try {
+                        if (enable) {
+                            am.setParameters("hifi_dac=on;audio_hifi_dac=1")
+                            if (preferredRate >= 96000) {
+                                am.setParameters("sampling_rate=$preferredRate")
+                            }
+                        } else {
+                            am.setParameters("hifi_dac=off;audio_hifi_dac=0")
+                        }
+                    } catch (_: Exception) {
+                    }
+                }
+            } catch (_: Exception) {
+            }
+            return inspectJackHardwareJson()
+        }
+
+        @JavascriptInterface
         fun setWindowColors(statusHex: String, navHex: String) {
             mainHandler.post {
                 try {
@@ -437,6 +623,14 @@ class MainActivity : AppCompatActivity() {
             } catch (_: Exception) {
             }
             mediaObserverRegistered = false
+        }
+        if (audioCallbackRegistered) {
+            try {
+                val am = applicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                am?.unregisterAudioDeviceCallback(audioDeviceCallback)
+            } catch (_: Exception) {
+            }
+            audioCallbackRegistered = false
         }
         // Desacopla la vista del contenedor sin destruir el motor de audio compartido
         (webView.parent as? ViewGroup)?.removeView(webView)
